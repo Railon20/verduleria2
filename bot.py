@@ -43,19 +43,20 @@ def webhook():
 # (Opcional) Endpoint para configurar el webhook manualmente
 @app.route("/setwebhook", methods=["GET"])
 def set_webhook():
-    success = telegram_app.bot.set_webhook(WEBHOOK_URL)
-    if success:
+    result = asyncio.run(telegram_app.bot.set_webhook(WEBHOOK_URL))
+    if result:
         return "Webhook configurado correctamente", 200
     else:
         return "Error configurando webhook", 400
 
+
 if __name__ == "__main__":
-    # Configurar el webhook al iniciar la aplicación
-    if telegram_app.bot.set_webhook(WEBHOOK_URL):
+    result = asyncio.run(telegram_app.bot.set_webhook(WEBHOOK_URL))
+    if result:
         logger.info("Webhook configurado correctamente")
     else:
         logger.error("Error al configurar el webhook")
-    # Ejecutar la aplicación Flask con Waitress
     from waitress import serve
     port = int(os.environ.get("PORT", 5000))
     serve(app, host="0.0.0.0", port=port)
+
