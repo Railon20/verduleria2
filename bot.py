@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 if not TOKEN:
     raise ValueError("No se encontró la variable de entorno TELEGRAM_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+WEBHOOK_URL = os.getenv("RENDER_EXTERNAL_URL") + "/webhook2"
 if not WEBHOOK_URL:
     raise ValueError("No se encontró la variable de entorno WEBHOOK_URL")
 
