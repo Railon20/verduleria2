@@ -1,16 +1,6 @@
-# ----- Monkey-patch para werkzeug (evita error de url_quote) -----
-try:
-    from werkzeug.urls import url_quote
-except ImportError:
-    from urllib.parse import quote as url_quote
-    import werkzeug.urls
-    werkzeug.urls.url_quote = url_quote
-# -------------------------------------------------------------------
-
 import os
 import logging
 import asyncio
-import threading
 from flask import Flask, request, jsonify
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
@@ -34,48 +24,27 @@ if not WEBHOOK_URL:
 # Crear la aplicación Flask
 app = Flask(__name__)
 
-# --- Crear y configurar el bot ---
-# Creamos un objeto HTTPXRequest con un pool de conexiones mayor y timeout ampliado.
-request_obj = HTTPXRequest(connection_pool_size=50, pool_timeout=20)
-# Creamos la instancia del bot usando el objeto de request personalizado.
+# Crear un objeto HTTPXRequest con un pool de conexiones mayor y timeout ampliado
+request_obj = HTTPXRequest(connection_pool_size=100, pool_timeout=60)
+# Crear la instancia de Application usando el objeto request personalizado
 telegram_app = Application.builder().token(TOKEN).request(request_obj).build()
 
-# Handler simple para /start
+# Handler simple para el comando /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Comando start iniciado")
 
 telegram_app.add_handler(CommandHandler("start", start))
-# -------------------------------------
 
-# --- Manejo del event loop ---
-# Declaramos una variable global para el loop del bot.
-BOT_LOOP = None
-
-def start_loop(loop: asyncio.AbstractEventLoop):
-    asyncio.set_event_loop(loop)
-    loop.run_forever()
-
-def ensure_bot_loop():
-    global BOT_LOOP
-    if BOT_LOOP is None:
-        BOT_LOOP = asyncio.new_event_loop()
-        t = threading.Thread(target=start_loop, args=(BOT_LOOP,), daemon=True)
-        t.start()
-    return BOT_LOOP
-# ---------------------------------
-
-# --- Endpoint del webhook ---
+# Endpoint asíncrono para recibir las actualizaciones (webhook)
 @app.route("/webhook", methods=["POST"])
-def webhook():
-    data = request.get_json(force=True)
+async def webhook():
+    data = await request.get_json()
     logger.info("Webhook recibido: %s", data)
     update = Update.de_json(data, telegram_app.bot)
-    # Aseguramos que haya un event loop en segundo plano y programamos la tarea.
-    loop = ensure_bot_loop()
-    asyncio.run_coroutine_threadsafe(telegram_app.process_update(update), loop)
+    await telegram_app.process_update(update)
     return jsonify({"status": "ok"}), 200
 
-# --- Endpoint opcional para configurar el webhook manualmente ---
+# (Opcional) Endpoint para configurar manualmente el webhook
 @app.route("/setwebhook", methods=["GET"])
 def set_webhook():
     success = telegram_app.bot.set_webhook(WEBHOOK_URL)
@@ -83,21 +52,15 @@ def set_webhook():
         return "Webhook configurado correctamente", 200
     else:
         return "Error configurando webhook", 400
-# ---------------------------------
 
 # Inicializar la aplicación de Telegram
 asyncio.run(telegram_app.initialize())
-if telegram_app.bot.set_webhook(WEBHOOK_URL):
-    logger.info("Webhook configurado correctamente")
-else:
-    logger.error("Error al configurar el webhook")
 
-# --- Convertir la aplicación Flask (WSGI) a ASGI para usarla con Gunicorn + UvicornWorker ---
+# Convertir la aplicación Flask a ASGI para poder usar Gunicorn con uvicorn.workers.UvicornWorker
 from asgiref.wsgi import WsgiToAsgi
 asgi_app = WsgiToAsgi(app)
-# ---------------------------------------------------------------------------------------------
 
-# Para pruebas locales (modo WSGI con Waitress) se ejecuta lo siguiente:
+# Para pruebas locales se puede usar Waitress
 if __name__ == "__main__":
     from waitress import serve
     port = int(os.environ.get("PORT", 5000))
