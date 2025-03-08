@@ -1,13 +1,11 @@
-# ----- Monkey-patch para werkzeug ----- 
-# Esto debe ir antes de cualquier importación de Flask.
+# ----- Monkey-patch para werkzeug -----
 try:
     from werkzeug.urls import url_quote
 except ImportError:
     from urllib.parse import quote as url_quote
     import werkzeug.urls
     werkzeug.urls.url_quote = url_quote
-
-# ---------------------------------------
+# ----------------------------------------
 
 import os
 import logging
@@ -15,11 +13,11 @@ import asyncio
 from flask import Flask, request, jsonify
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.request import HTTPXRequest
 
 # Configuración de logging
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
@@ -32,9 +30,14 @@ if not TOKEN:
 if not WEBHOOK_URL:
     raise ValueError("No se ha definido WEBHOOK_URL en las variables de entorno.")
 
-# Crear la aplicación Flask y la instancia del bot de Telegram
+# Crear la aplicación Flask
 app = Flask(__name__)
-telegram_app = Application.builder().token(TOKEN).build()
+
+# Creamos un objeto HTTPXRequest con mayor tamaño de pool y mayor timeout
+request_obj = HTTPXRequest(connection_pool_size=50, pool_timeout=20)
+
+# Crear la instancia del bot usando el objeto de request personalizado
+telegram_app = Application.builder().token(TOKEN).request(request_obj).build()
 
 # Handler simple para /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -48,7 +51,7 @@ def webhook():
     data = request.get_json(force=True)
     logger.info("Webhook recibido: %s", data)
     update = Update.de_json(data, telegram_app.bot)
-    # Procesar el update (como estamos en un contexto síncrono usamos asyncio.run)
+    # Procesar el update; usamos asyncio.run para correr la coroutine
     asyncio.run(telegram_app.process_update(update))
     return jsonify({"status": "ok"}), 200
 
@@ -61,18 +64,18 @@ def set_webhook():
     else:
         return "Error configurando webhook", 400
 
-# Inicializar la aplicación de Telegram (esto es necesario para que process_update funcione)
+# Inicializar la aplicación de Telegram
 asyncio.run(telegram_app.initialize())
 if telegram_app.bot.set_webhook(WEBHOOK_URL):
     logger.info("Webhook configurado correctamente")
 else:
     logger.error("Error al configurar el webhook")
 
-# Convertir la aplicación Flask (WSGI) a ASGI (para que Gunicorn con UvicornWorker la pueda servir)
+# Convertir la aplicación Flask (WSGI) a ASGI para Gunicorn con UvicornWorker
 from asgiref.wsgi import WsgiToAsgi
 asgi_app = WsgiToAsgi(app)
 
-# Para pruebas locales (modo WSGI) puedes usar waitress
+# Para pruebas locales en modo WSGI puedes usar Waitress:
 if __name__ == "__main__":
     from waitress import serve
     port = int(os.environ.get("PORT", 5000))
