@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 # Cargar variables de entorno
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # Ej: "https://verduleria2.onrender.com/webhook"
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # Ejemplo: "https://<tu-subdominio>.onrender.com/webhook"
 
 if not TOKEN:
     raise ValueError("No se ha definido TELEGRAM_TOKEN en las variables de entorno.")
@@ -36,7 +36,7 @@ def webhook():
     data = request.get_json(force=True)
     logger.info("Webhook recibido: %s", data)
     update = Update.de_json(data, telegram_app.bot)
-    # Ejecutar el coroutine process_update en un event loop
+    # Procesar el update usando asyncio.run (ya que estamos en un contexto síncrono)
     asyncio.run(telegram_app.process_update(update))
     return jsonify({"status": "ok"}), 200
 
@@ -49,17 +49,21 @@ def set_webhook():
     else:
         return "Error configurando webhook", 400
 
-# Convertir la aplicación Flask (WSGI) a ASGI para usar con uvicorn
+# Inicialización del bot (se ejecuta al importar el módulo)
+# Esto es necesario para que process_update funcione correctamente
+asyncio.run(telegram_app.initialize())
+# Configuramos el webhook (esto se ejecuta una vez en el arranque de cada worker)
+if telegram_app.bot.set_webhook(WEBHOOK_URL):
+    logger.info("Webhook configurado correctamente")
+else:
+    logger.error("Error al configurar el webhook")
+
+# Convertir la aplicación Flask (WSGI) a una aplicación ASGI
 from asgiref.wsgi import WsgiToAsgi
 asgi_app = WsgiToAsgi(app)
 
+# Si se ejecuta localmente en modo WSGI (por ejemplo, usando waitress)
 if __name__ == "__main__":
-    # Configurar el webhook al iniciar la aplicación
-    if telegram_app.bot.set_webhook(WEBHOOK_URL):
-        logger.info("Webhook configurado correctamente")
-    else:
-        logger.error("Error al configurar el webhook")
-    # Si se quiere ejecutar en modo WSGI localmente, se puede usar waitress:
     from waitress import serve
     port = int(os.environ.get("PORT", 5000))
     serve(app, host="0.0.0.0", port=port)
