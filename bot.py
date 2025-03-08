@@ -33,7 +33,7 @@ if not WEBHOOK_URL:
 # Crear la aplicación Flask
 app = Flask(__name__)
 
-# Creamos un objeto HTTPXRequest con mayor tamaño de pool y mayor timeout
+# Crear un objeto HTTPXRequest con pool de conexiones grande y mayor timeout
 request_obj = HTTPXRequest(connection_pool_size=50, pool_timeout=20)
 
 # Crear la instancia del bot usando el objeto de request personalizado
@@ -51,8 +51,13 @@ def webhook():
     data = request.get_json(force=True)
     logger.info("Webhook recibido: %s", data)
     update = Update.de_json(data, telegram_app.bot)
-    # Procesar el update; usamos asyncio.run para correr la coroutine
-    asyncio.run(telegram_app.process_update(update))
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    # Programa la tarea sin bloquear
+    loop.create_task(telegram_app.process_update(update))
     return jsonify({"status": "ok"}), 200
 
 # (Opcional) Endpoint para configurar el webhook manualmente
@@ -64,18 +69,18 @@ def set_webhook():
     else:
         return "Error configurando webhook", 400
 
-# Inicializar la aplicación de Telegram
+# Inicializar la aplicación de Telegram (esto crea y cierra un loop, pero luego se usará el loop del servidor)
 asyncio.run(telegram_app.initialize())
 if telegram_app.bot.set_webhook(WEBHOOK_URL):
     logger.info("Webhook configurado correctamente")
 else:
     logger.error("Error al configurar el webhook")
 
-# Convertir la aplicación Flask (WSGI) a ASGI para Gunicorn con UvicornWorker
+# Convertir la aplicación Flask (WSGI) a ASGI para usarla con Gunicorn + UvicornWorker
 from asgiref.wsgi import WsgiToAsgi
 asgi_app = WsgiToAsgi(app)
 
-# Para pruebas locales en modo WSGI puedes usar Waitress:
+# Para pruebas locales puedes ejecutar Waitress en modo WSGI:
 if __name__ == "__main__":
     from waitress import serve
     port = int(os.environ.get("PORT", 5000))
