@@ -1,27 +1,26 @@
 import os
 import logging
+import asyncio
 from flask import Flask, request, jsonify
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
-from asgiref.wsgi import WsgiToAsgi
 
 # Configuración de logging
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", 
-    level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
 # Cargar variables de entorno
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # Ejemplo: "https://<tu-subdominio>.onrender.com/webhook"
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # Ej: "https://verduleria2.onrender.com/webhook"
 
 if not TOKEN:
     raise ValueError("No se ha definido TELEGRAM_TOKEN en las variables de entorno.")
 if not WEBHOOK_URL:
     raise ValueError("No se ha definido WEBHOOK_URL en las variables de entorno.")
 
-# Crear la aplicación Flask y la instancia del bot
+# Crear la aplicación Flask y la instancia del bot de Telegram
 app = Flask(__name__)
 telegram_app = Application.builder().token(TOKEN).build()
 
@@ -37,10 +36,11 @@ def webhook():
     data = request.get_json(force=True)
     logger.info("Webhook recibido: %s", data)
     update = Update.de_json(data, telegram_app.bot)
-    telegram_app.process_update(update)
+    # Ejecutar el coroutine process_update en un event loop
+    asyncio.run(telegram_app.process_update(update))
     return jsonify({"status": "ok"}), 200
 
-# Endpoint para configurar el webhook manualmente (opcional)
+# (Opcional) Endpoint para configurar el webhook manualmente
 @app.route("/setwebhook", methods=["GET"])
 def set_webhook():
     success = telegram_app.bot.set_webhook(WEBHOOK_URL)
@@ -49,7 +49,8 @@ def set_webhook():
     else:
         return "Error configurando webhook", 400
 
-# Envolver la aplicación Flask en un contenedor ASGI
+# Convertir la aplicación Flask (WSGI) a ASGI para usar con uvicorn
+from asgiref.wsgi import WsgiToAsgi
 asgi_app = WsgiToAsgi(app)
 
 if __name__ == "__main__":
@@ -58,8 +59,7 @@ if __name__ == "__main__":
         logger.info("Webhook configurado correctamente")
     else:
         logger.error("Error al configurar el webhook")
-    
-    # Para probar localmente con waitress (WSGI)
+    # Si se quiere ejecutar en modo WSGI localmente, se puede usar waitress:
     from waitress import serve
     port = int(os.environ.get("PORT", 5000))
     serve(app, host="0.0.0.0", port=port)
