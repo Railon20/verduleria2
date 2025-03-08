@@ -24,10 +24,10 @@ if not WEBHOOK_URL:
 # Creamos la aplicación Flask
 app = Flask(__name__)
 
-# Creamos un objeto HTTPXRequest con parámetros ampliados (esto ayuda a evitar errores de pool timeout)
+# Configuramos un objeto HTTPXRequest con pool aumentado (para evitar problemas de timeout)
 request_obj = HTTPXRequest(connection_pool_size=100, pool_timeout=60)
 
-# Creamos la instancia de Application usando nuestro objeto request personalizado
+# Creamos la instancia de la aplicación de Telegram usando nuestro request personalizado
 telegram_app = Application.builder().token(TOKEN).request(request_obj).build()
 
 # Handler simple para /start
@@ -36,10 +36,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 telegram_app.add_handler(CommandHandler("start", start))
 
-# Endpoint asíncrono para recibir las actualizaciones (webhook)
+# Endpoint para recibir actualizaciones vía webhook (ya no usamos await con get_json)
 @app.route("/webhook", methods=["POST"])
 async def webhook():
-    data = await request.get_json()
+    data = request.get_json()  # Se elimina el await
     logger.info("Webhook recibido: %s", data)
     update = Update.de_json(data, telegram_app.bot)
     await telegram_app.process_update(update)
@@ -61,7 +61,7 @@ asyncio.run(telegram_app.initialize())
 from asgiref.wsgi import WsgiToAsgi
 asgi_app = WsgiToAsgi(app)
 
-# Si ejecutas localmente, puedes usar Waitress (por ejemplo, con: python bot.py)
+# Si se ejecuta localmente, se puede usar Waitress:
 if __name__ == "__main__":
     from waitress import serve
     port = int(os.environ.get("PORT", 5000))
