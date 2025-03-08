@@ -21,15 +21,16 @@ if not TOKEN:
 if not WEBHOOK_URL:
     raise ValueError("No se ha definido WEBHOOK_URL en las variables de entorno.")
 
-# Crear la aplicación Flask
+# Creamos la aplicación Flask
 app = Flask(__name__)
 
-# Crear un objeto HTTPXRequest con un pool de conexiones mayor y timeout ampliado
+# Creamos un objeto HTTPXRequest con parámetros ampliados (esto ayuda a evitar errores de pool timeout)
 request_obj = HTTPXRequest(connection_pool_size=100, pool_timeout=60)
-# Crear la instancia de Application usando el objeto request personalizado
+
+# Creamos la instancia de Application usando nuestro objeto request personalizado
 telegram_app = Application.builder().token(TOKEN).request(request_obj).build()
 
-# Handler simple para el comando /start
+# Handler simple para /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Comando start iniciado")
 
@@ -44,7 +45,7 @@ async def webhook():
     await telegram_app.process_update(update)
     return jsonify({"status": "ok"}), 200
 
-# (Opcional) Endpoint para configurar manualmente el webhook
+# (Opcional) Endpoint para configurar el webhook manualmente
 @app.route("/setwebhook", methods=["GET"])
 def set_webhook():
     success = telegram_app.bot.set_webhook(WEBHOOK_URL)
@@ -53,14 +54,14 @@ def set_webhook():
     else:
         return "Error configurando webhook", 400
 
-# Inicializar la aplicación de Telegram
+# Inicializamos la aplicación de Telegram (esto debe hacerse antes de convertir Flask a ASGI)
 asyncio.run(telegram_app.initialize())
 
-# Convertir la aplicación Flask a ASGI para poder usar Gunicorn con uvicorn.workers.UvicornWorker
+# Convertimos la aplicación Flask a ASGI para que Gunicorn pueda usarla con uvicorn.workers.UvicornWorker
 from asgiref.wsgi import WsgiToAsgi
 asgi_app = WsgiToAsgi(app)
 
-# Para pruebas locales se puede usar Waitress
+# Si ejecutas localmente, puedes usar Waitress (por ejemplo, con: python bot.py)
 if __name__ == "__main__":
     from waitress import serve
     port = int(os.environ.get("PORT", 5000))
