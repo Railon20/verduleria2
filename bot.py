@@ -4,7 +4,6 @@ import asyncio
 from flask import Flask, request, jsonify
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
-from telegram.request import HTTPXRequest
 
 # Configuración de logging
 logging.basicConfig(
@@ -21,14 +20,11 @@ if not TOKEN:
 if not WEBHOOK_URL:
     raise ValueError("No se ha definido WEBHOOK_URL en las variables de entorno.")
 
-# Creamos la aplicación Flask
+# Crear la aplicación Flask
 app = Flask(__name__)
 
-# Configuramos un objeto HTTPXRequest con pool aumentado (para evitar problemas de timeout)
-request_obj = HTTPXRequest(connection_pool_size=100, pool_timeout=60)
-
-# Creamos la instancia de la aplicación de Telegram usando nuestro request personalizado
-telegram_app = Application.builder().token(TOKEN).request(request_obj).build()
+# Crear la instancia de la aplicación de Telegram (usa la implementación asíncrona por defecto, AIOHTTP)
+telegram_app = Application.builder().token(TOKEN).build()
 
 # Handler simple para /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -36,10 +32,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 telegram_app.add_handler(CommandHandler("start", start))
 
-# Endpoint para recibir actualizaciones vía webhook (ya no usamos await con get_json)
+# Endpoint para recibir actualizaciones vía webhook
 @app.route("/webhook", methods=["POST"])
 async def webhook():
-    data = request.get_json()  # Se elimina el await
+    # En Flask get_json() es síncrono
+    data = request.get_json()
     logger.info("Webhook recibido: %s", data)
     update = Update.de_json(data, telegram_app.bot)
     await telegram_app.process_update(update)
@@ -54,14 +51,14 @@ def set_webhook():
     else:
         return "Error configurando webhook", 400
 
-# Inicializamos la aplicación de Telegram (esto debe hacerse antes de convertir Flask a ASGI)
+# Inicializar la aplicación de Telegram (esto se ejecuta una vez al iniciar la app)
 asyncio.run(telegram_app.initialize())
 
-# Convertimos la aplicación Flask a ASGI para que Gunicorn pueda usarla con uvicorn.workers.UvicornWorker
+# Convertir la app Flask a ASGI para que Gunicorn con worker uvicorn la use
 from asgiref.wsgi import WsgiToAsgi
 asgi_app = WsgiToAsgi(app)
 
-# Si se ejecuta localmente, se puede usar Waitress:
+# Si se ejecuta localmente, se puede usar Waitress (modo WSGI)
 if __name__ == "__main__":
     from waitress import serve
     port = int(os.environ.get("PORT", 5000))
