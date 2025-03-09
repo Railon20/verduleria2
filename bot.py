@@ -3,7 +3,8 @@ import logging
 import asyncio
 import threading
 from flask import Flask, request, jsonify
-from telegram import Update, Request
+from telegram import Update
+from telegram.request import Request  # Importa Request desde telegram.request
 from telegram.ext import Application, CommandHandler, ContextTypes
 from waitress import serve
 
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 # Cargar variables de entorno
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # Ejemplo: "https://<tu-subdominio>.onrender.com/webhook"
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # Ejemplo: "https://tu-subdominio.onrender.com/webhook"
 
 if not TOKEN:
     raise ValueError("No se ha definido TELEGRAM_TOKEN en las variables de entorno.")
@@ -26,7 +27,7 @@ if not WEBHOOK_URL:
 # Creamos un objeto Request con un pool de conexiones mayor y tiempos de espera configurados
 req = Request(con_pool_size=20, connect_timeout=10, read_timeout=10)
 
-# Crear la aplicación Flask y la instancia de Telegram (usando nuestro Request personalizado)
+# Crear la aplicación Flask y la instancia de Telegram usando el Request personalizado
 app = Flask(__name__)
 telegram_app = Application.builder().token(TOKEN).request(req).build()
 
@@ -37,7 +38,7 @@ def start_event_loop(loop):
     asyncio.set_event_loop(loop)
     loop.run_forever()
 
-# Al iniciar Flask, arrancamos el event loop y configuramos el webhook
+# Al iniciar la aplicación, arrancamos el event loop y configuramos el webhook
 @app.before_first_request
 def init_event_loop_and_webhook():
     threading.Thread(target=start_event_loop, args=(event_loop,), daemon=True).start()
@@ -52,13 +53,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 telegram_app.add_handler(CommandHandler("start", start))
 
-# --- Endpoint del webhook ---
+# --- Endpoint para recibir las actualizaciones del webhook ---
 @app.route("/webhook", methods=["POST"])
 def webhook():
     data = request.get_json(force=True)
     logger.info("Webhook recibido: %s", data)
     update = Update.de_json(data, telegram_app.bot)
-    # Encola la tarea para procesar la actualización en el event loop global
+    # Encolamos la tarea para procesar la actualización en el event loop global
     asyncio.run_coroutine_threadsafe(telegram_app.process_update(update), event_loop)
     return jsonify({"status": "ok"}), 200
 
