@@ -24,11 +24,10 @@ if not WEBHOOK_URL:
     raise ValueError("No se ha definido WEBHOOK_URL en las variables de entorno.")
 
 # Creamos un objeto Request con un pool de conexiones mayor y tiempos de espera configurados
-req = Request(con_pool_size=20, connect_timeout=10, read_timeout=10)
 
 # Crear la aplicación Flask y la instancia de Telegram usando el Request personalizado
 app = Flask(__name__)
-telegram_app = Application.builder().token(TOKEN).request(req).build()
+telegram_app = Application.builder().token(TOKEN).build()
 
 # --- Iniciar un event loop global en un hilo separado ---
 event_loop = asyncio.new_event_loop()
