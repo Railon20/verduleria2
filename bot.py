@@ -71,5 +71,19 @@ def set_webhook():
 
 # --- Ejecutar la aplicación Flask usando Waitress ---
 if __name__ == "__main__":
+    # Inicia el event loop en un hilo de fondo
+    t = threading.Thread(target=start_event_loop, args=(event_loop,), daemon=True)
+    t.start()
+    # Configura el webhook usando run_coroutine_threadsafe para awaitear el coroutine
+    future = asyncio.run_coroutine_threadsafe(telegram_app.bot.set_webhook(WEBHOOK_URL), event_loop)
+    try:
+        if future.result(timeout=10):
+            logger.info("Webhook configurado correctamente")
+        else:
+            logger.error("Error al configurar el webhook")
+    except Exception as e:
+        logger.error("Excepción al configurar el webhook: %s", e)
+    # Arranca el servidor de Waitress
     port = int(os.environ.get("PORT", 5000))
     serve(app, host="0.0.0.0", port=port)
+
