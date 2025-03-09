@@ -4,7 +4,6 @@ import asyncio
 import threading
 from flask import Flask, request, jsonify
 from telegram import Update
-from telegram.request import Request  # Importa Request desde telegram.request
 from telegram.ext import Application, CommandHandler, ContextTypes
 from waitress import serve
 
