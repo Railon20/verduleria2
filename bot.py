@@ -16,18 +16,25 @@ logger = logging.getLogger(__name__)
 
 # Cargar variables de entorno
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # Ejemplo: "https://tu-subdominio.onrender.com/webhook"
-
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # Ejemplo: "https://verduleria2-co0u.onrender.com/webhook"
 if not TOKEN:
     raise ValueError("No se ha definido TELEGRAM_TOKEN en las variables de entorno.")
 if not WEBHOOK_URL:
     raise ValueError("No se ha definido WEBHOOK_URL en las variables de entorno.")
 
-# Creamos un objeto Request con un pool de conexiones mayor y tiempos de espera configurados
+# Importar Request (para configurar el pool de conexiones)
+try:
+    from telegram.request import Request
+except ImportError:
+    from telegram._request import Request
 
-# Crear la aplicación Flask y la instancia de Telegram usando el Request personalizado
+# Creamos el objeto Request con un pool mayor y tiempos de espera configurados
+req = Request(con_pool_size=20, connect_timeout=10, read_timeout=10)
+
+# Creamos la aplicación Flask y la instancia de Telegram usando el Request personalizado
 app = Flask(__name__)
-telegram_app = Application.builder().token(TOKEN).build()
+telegram_app = Application.builder().token(TOKEN).request(req).build()
+
 
 # --- Iniciar un event loop global en un hilo separado ---
 event_loop = asyncio.new_event_loop()
