@@ -4,7 +4,8 @@ import asyncio
 from flask import Flask, request, jsonify
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
-from telegram.request import Request
+# Importamos Request desde la ruta interna
+from telegram.request.request import Request
 
 # Configuración de logging
 logging.basicConfig(
@@ -24,8 +25,8 @@ if not WEBHOOK_URL:
 # Crear la aplicación Flask
 app = Flask(__name__)
 
-# Crear un objeto Request con un pool de conexiones mayor y timeout extendido
-req = Request(con_pool_size=50, pool_timeout=20)
+# Crear un objeto Request personalizado con mayor pool y timeout
+req = Request(con_pool_size=100, pool_timeout=30)
 
 # Crear la aplicación de Telegram usando el Request personalizado
 telegram_app = Application.builder().token(TOKEN).request(req).build()
@@ -36,13 +37,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 telegram_app.add_handler(CommandHandler("start", start))
 
-# Endpoint para recibir actualizaciones vía webhook (la vista se declara async)
+# Endpoint para recibir actualizaciones vía webhook (definido como async para usarse con ASGI)
 @app.route("/webhook", methods=["POST"])
 async def webhook():
     data = request.get_json()
     logger.info("Webhook recibido: %s", data)
     update = Update.de_json(data, telegram_app.bot)
-    # Procesar la actualización de forma asíncrona
     await telegram_app.process_update(update)
     return jsonify({"status": "ok"}), 200
 
@@ -55,14 +55,14 @@ def set_webhook():
     else:
         return "Error configurando webhook", 400
 
-# Inicializar la aplicación de Telegram (esto se ejecuta al inicio)
+# Inicializar la aplicación de Telegram (esto se hace una vez al inicio)
 asyncio.run(telegram_app.initialize())
 
-# Convertir la aplicación Flask a ASGI para que Gunicorn con worker uvicorn la pueda ejecutar
+# Convertir la aplicación Flask a ASGI para que Gunicorn (con worker uvicorn) la ejecute
 from asgiref.wsgi import WsgiToAsgi
 asgi_app = WsgiToAsgi(app)
 
-# Para ejecutar localmente (modo WSGI), se puede usar Waitress:
+# Si se ejecuta directamente (modo Waitress para pruebas locales)
 if __name__ == "__main__":
     from waitress import serve
     port = int(os.environ.get("PORT", 5000))
