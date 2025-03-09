@@ -1,8 +1,11 @@
 import os
 import logging
+import asyncio
+import threading
 from flask import Flask, request, jsonify
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
+from waitress import serve
 
 # Configuración de logging
 logging.basicConfig(
@@ -24,39 +27,49 @@ if not WEBHOOK_URL:
 app = Flask(__name__)
 telegram_app = Application.builder().token(TOKEN).build()
 
-# Handler simple para /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Comando start iniciado")
+# --- Iniciar un event loop global en un hilo separado ---
+# Creamos un bucle de eventos nuevo
+event_loop = asyncio.new_event_loop()
 
-telegram_app.add_handler(CommandHandler("start", start))
+def start_event_loop(loop):
+    asyncio.set_event_loop(loop)
+    loop.run_forever()
 
-# Endpoint para recibir los updates del webhook
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    data = request.get_json(force=True)
-    logger.info("Webhook recibido: %s", data)
-    update = Update.de_json(data, telegram_app.bot)
-    # Procesar la actualización sin await ya que estamos en contexto sincrónico
-    telegram_app.process_update(update)
-    return jsonify({"status": "ok"}), 200
-
-# (Opcional) Endpoint para configurar el webhook manualmente
-@app.route("/setwebhook", methods=["GET"])
-def set_webhook():
-    success = telegram_app.bot.set_webhook(WEBHOOK_URL)
-    if success:
-        return "Webhook configurado correctamente", 200
-    else:
-        return "Error configurando webhook", 400
-
-if __name__ == "__main__":
-    # Configurar el webhook al iniciar la aplicación
+# Iniciamos el bucle de eventos en un hilo independiente (esto se hace al iniciar Flask)
+@app.before_first_request
+def init_event_loop():
+    threading.Thread(target=start_event_loop, args=(event_loop,), daemon=True).start()
+    # Configuramos el webhook
     if telegram_app.bot.set_webhook(WEBHOOK_URL):
         logger.info("Webhook configurado correctamente")
     else:
         logger.error("Error al configurar el webhook")
 
-    # Ejecutar la aplicación Flask usando Waitress, que es un servidor WSGI de producción
-    from waitress import serve
+# --- Handler para el comando /start ---
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Comando start iniciado")
+
+telegram_app.add_handler(CommandHandler("start", start))
+
+# --- Endpoint del webhook ---
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    data = request.get_json(force=True)
+    logger.info("Webhook recibido: %s", data)
+    update = Update.de_json(data, telegram_app.bot)
+    # Encolamos la tarea para procesar la actualización en el event loop global
+    asyncio.run_coroutine_threadsafe(telegram_app.process_update(update), event_loop)
+    return jsonify({"status": "ok"}), 200
+
+# --- (Opcional) Endpoint para configurar manualmente el webhook ---
+@app.route("/setwebhook", methods=["GET"])
+def set_webhook():
+    if telegram_app.bot.set_webhook(WEBHOOK_URL):
+        return "Webhook configurado correctamente", 200
+    else:
+        return "Error configurando webhook", 400
+
+# --- Ejecutar la aplicación Flask con Waitress ---
+if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     serve(app, host="0.0.0.0", port=port)
