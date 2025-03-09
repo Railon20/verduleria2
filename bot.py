@@ -55,7 +55,9 @@ def init_event_loop_and_webhook():
 
 # --- Handler para el comando /start ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info("Dentro del handler /start")
     await update.message.reply_text("Comando start iniciado")
+
 
 telegram_app.add_handler(CommandHandler("start", start))
 
@@ -65,9 +67,14 @@ def webhook():
     data = request.get_json(force=True)
     logger.info("Webhook recibido: %s", data)
     update = Update.de_json(data, telegram_app.bot)
-    # Encolamos la tarea para procesar la actualización en el event loop global
-    asyncio.run_coroutine_threadsafe(telegram_app.process_update(update), event_loop)
+    future = asyncio.run_coroutine_threadsafe(telegram_app.process_update(update), event_loop)
+    try:
+        # Espera hasta 10 segundos para que se procese el update
+        future.result(timeout=10)
+    except Exception as e:
+        logger.error("Error al procesar el update: %s", e)
     return jsonify({"status": "ok"}), 200
+
 
 # --- (Opcional) Endpoint para configurar manualmente el webhook ---
 @app.route("/setwebhook", methods=["GET"])
