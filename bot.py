@@ -47,11 +47,23 @@ def start_event_loop(loop):
 # Al iniciar la aplicación, arrancamos el event loop y configuramos el webhook
 @app.before_first_request
 def init_event_loop_and_webhook():
+    # Iniciar el event loop en un hilo separado
     threading.Thread(target=start_event_loop, args=(event_loop,), daemon=True).start()
+
+    # Espera a que se inicie el loop y luego inicializa la aplicación
+    future = asyncio.run_coroutine_threadsafe(telegram_app.initialize(), event_loop)
+    try:
+        # Espera hasta 10 segundos para que se complete la inicialización
+        future.result(timeout=10)
+    except Exception as e:
+        logger.error("Error al inicializar la aplicación: %s", e)
+    
+    # Configurar el webhook
     if telegram_app.bot.set_webhook(WEBHOOK_URL):
         logger.info("Webhook configurado correctamente")
     else:
         logger.error("Error al configurar el webhook")
+
 
 # --- Handler para el comando /start ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
