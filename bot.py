@@ -3,7 +3,7 @@ import logging
 import asyncio
 import threading
 from flask import Flask, request, jsonify
-from telegram import Update
+from telegram import Update, Request
 from telegram.ext import Application, CommandHandler, ContextTypes
 from waitress import serve
 
@@ -23,23 +23,24 @@ if not TOKEN:
 if not WEBHOOK_URL:
     raise ValueError("No se ha definido WEBHOOK_URL en las variables de entorno.")
 
-# Crear la aplicación Flask y la instancia de Telegram
+# Creamos un objeto Request con un pool de conexiones mayor y tiempos de espera configurados
+req = Request(con_pool_size=20, connect_timeout=10, read_timeout=10)
+
+# Crear la aplicación Flask y la instancia de Telegram (usando nuestro Request personalizado)
 app = Flask(__name__)
-telegram_app = Application.builder().token(TOKEN).build()
+telegram_app = Application.builder().token(TOKEN).request(req).build()
 
 # --- Iniciar un event loop global en un hilo separado ---
-# Creamos un bucle de eventos nuevo
 event_loop = asyncio.new_event_loop()
 
 def start_event_loop(loop):
     asyncio.set_event_loop(loop)
     loop.run_forever()
 
-# Iniciamos el bucle de eventos en un hilo independiente (esto se hace al iniciar Flask)
+# Al iniciar Flask, arrancamos el event loop y configuramos el webhook
 @app.before_first_request
-def init_event_loop():
+def init_event_loop_and_webhook():
     threading.Thread(target=start_event_loop, args=(event_loop,), daemon=True).start()
-    # Configuramos el webhook
     if telegram_app.bot.set_webhook(WEBHOOK_URL):
         logger.info("Webhook configurado correctamente")
     else:
@@ -57,7 +58,7 @@ def webhook():
     data = request.get_json(force=True)
     logger.info("Webhook recibido: %s", data)
     update = Update.de_json(data, telegram_app.bot)
-    # Encolamos la tarea para procesar la actualización en el event loop global
+    # Encola la tarea para procesar la actualización en el event loop global
     asyncio.run_coroutine_threadsafe(telegram_app.process_update(update), event_loop)
     return jsonify({"status": "ok"}), 200
 
@@ -69,7 +70,7 @@ def set_webhook():
     else:
         return "Error configurando webhook", 400
 
-# --- Ejecutar la aplicación Flask con Waitress ---
+# --- Ejecutar la aplicación Flask usando Waitress ---
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     serve(app, host="0.0.0.0", port=port)
