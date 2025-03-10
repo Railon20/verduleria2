@@ -2774,6 +2774,11 @@ def get_cart_owner(cart_id):
     finally:
         release_db(conn)
 
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Cancela la conversación."""
+    await update.message.reply_text("Operación cancelada.")
+    return ConversationHandler.END
+
 async def new_cart_name_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
     Crea un nuevo carrito para el usuario. Si en context.user_data se encuentran datos de adhesión
