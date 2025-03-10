@@ -5,3 +5,10 @@ gunicorn==23.0.0
 uvicorn==0.22.0
 asgiref==3.6.0
 waitress==3.0.2
+tzlocal
+pytz
+APScheduler
+psycopg2-binary
+cachetools
+mercadopago
+fpdf
