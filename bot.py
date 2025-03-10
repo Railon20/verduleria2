@@ -40,12 +40,6 @@ import os
 import threading
 from waitress import serve
 
-# Configuración de logging
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
 
 # Cargar variables de entorno
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
@@ -75,22 +69,17 @@ event_loop = asyncio.new_event_loop()
 def start_event_loop(loop):
     asyncio.set_event_loop(loop)
     loop.run_forever()
+threading.Thread(target=start_event_loop, args=(event_loop,), daemon=True).start()
 
 # Al iniciar la aplicación, arrancamos el event loop y configuramos el webhook
 @app.before_first_request
 def init_event_loop_and_webhook():
-    # Iniciar el event loop en un hilo separado
-    threading.Thread(target=start_event_loop, args=(event_loop,), daemon=True).start()
 
-    # Espera a que se inicie el loop y luego inicializa la aplicación
     future = asyncio.run_coroutine_threadsafe(application.initialize(), event_loop)
     try:
-        # Espera hasta 10 segundos para que se complete la inicialización
         future.result(timeout=10)
     except Exception as e:
         logger.error("Error al inicializar la aplicación: %s", e)
-    
-    # Configurar el webhook
     if application.bot.set_webhook(WEBHOOK_URL):
         logger.info("Webhook configurado correctamente")
     else:
@@ -103,7 +92,6 @@ def init_event_loop_and_webhook():
 # --- Forzamos que tzlocal retorne una zona de pytz (si fuera necesario) ---
 
 
-app = Flask(__name__)
 
 BOT_LOOP = None
 
@@ -216,21 +204,6 @@ def start_bot_loop(loop):
     asyncio.set_event_loop(loop)
     logger.info("Iniciando el event loop del bot")
     loop.run_forever()
-
-
-def ensure_bot_loop():
-    """Se asegura de que BOT_LOOP esté inicializado y corriendo.
-    Si no está creado, lo crea, inicia el hilo y ejecuta la inicialización de la aplicación.
-    """
-    global BOT_LOOP
-    if BOT_LOOP is None:
-        BOT_LOOP = asyncio.new_event_loop()
-        # Inicia el bucle en un hilo separado (daemon)
-        threading.Thread(target=start_bot_loop, args=(BOT_LOOP,), daemon=True).start()
-        # Inicializa la aplicación en ese bucle
-        future = asyncio.run_coroutine_threadsafe(application.initialize(), BOT_LOOP)
-        future.result()  # Espera a que se inicialice
-    return BOT_LOOP
 
 def connect_db():
     """Obtiene una conexión del pool."""
@@ -2965,9 +2938,7 @@ async def ping_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main() -> None:
     
     init_db()
-    future = asyncio.run_coroutine_threadsafe(application.initialize(), event_loop)
 
-    application.add_handler(CommandHandler("start", start), group=-1)
     application.add_handler(CommandHandler("test", test_handler), group=-1)
     application.add_handler(CommandHandler("crear_equipo", crear_equipo_command_handler))
     application.add_handler(CommandHandler("eliminar_equipo", eliminar_equipo_command_handler))
@@ -3068,7 +3039,6 @@ def webhook():
     update = Update.de_json(data, application.bot)
     future = asyncio.run_coroutine_threadsafe(application.process_update(update), event_loop)
     try:
-        # Espera hasta 10 segundos para que se procese el update
         future.result(timeout=10)
     except Exception as e:
         logger.error("Error al procesar el update: %s", e)
