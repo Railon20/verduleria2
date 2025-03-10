@@ -2891,11 +2891,12 @@ def mp_webhook():
                 if order_id is None:
                     logger.error("Error al insertar el pedido")
                 try:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
                     context_wrapper = SimpleContext(TELEGRAM_BOT)
-                    loop.run_until_complete(send_order_notifications(cart_id, confirmation_code, context_wrapper, user_id))
-                    loop.close()
+                    future = asyncio.run_coroutine_threadsafe(
+                        send_order_notifications(cart_id, confirmation_code, context_wrapper, user_id),
+                        event_loop  # usa el event_loop global que ya tienes
+                    )
+                    future.result(timeout=10)
                     logger.info("Notificaciones enviadas correctamente")
                     return jsonify({"status": "ok"}), 200
                 except Exception as e:
