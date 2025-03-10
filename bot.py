@@ -3023,6 +3023,7 @@ def set_webhook():
 
 # --- Ejecutar la aplicación Flask usando Waitress ---
 if __name__ == "__main__":
+    main()
     # Inicia el event loop en un hilo de fondo
     t = threading.Thread(target=start_event_loop, args=(event_loop,), daemon=True)
     t.start()
