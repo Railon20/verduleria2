@@ -2918,8 +2918,6 @@ def main() -> None:
     application.add_handler(CommandHandler("ver_conjuntos", ver_conjuntos_no_terminados_handler))
     application.add_handler(CommandHandler("webhookinfo", webhook_info_handler))
 
-    application.add_handler(CommandHandler("ping", ping_handler), group=-1)
-
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
