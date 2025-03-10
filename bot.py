@@ -115,6 +115,10 @@ processed_payment_ids = set()
 # --- Iniciar un event loop global en un hilo separado ---
 event_loop = asyncio.new_event_loop()
 
+class SimpleContext:
+    def __init__(self, bot):
+        self.bot = bot
+
 def start_event_loop(loop):
     asyncio.set_event_loop(loop)
     loop.run_forever()
