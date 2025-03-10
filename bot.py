@@ -82,6 +82,7 @@ PROVIDER_CHAT_ID = 222222222
 
 allowed_ids = [ADMIN_CHAT_ID, PROVIDER_CHAT_ID]  # Puedes agregar los IDs del personal adicional aquí
 
+TELEGRAM_BOT = None
 
 def admin_only(func):
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -109,11 +110,13 @@ def admin_only(func):
 app = Flask(__name__)
 #application = Application.builder().token(TOKEN).request(req).build()
 application = Application.builder().token(TOKEN).build()
+TELEGRAM_BOT = application.bot
 
 processed_payment_ids = set()
 
 # --- Iniciar un event loop global en un hilo separado ---
 event_loop = asyncio.new_event_loop()
+
 
 class SimpleContext:
     def __init__(self, bot):
