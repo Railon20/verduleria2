@@ -574,7 +574,7 @@ def insert_order_with_conjunto(cart_id, telegram_id, confirmation_code):
         conjunto_id = create_new_conjunto(new_num)
     else:
         last_conjunto_id, last_num = last
-        if count_orders_in_conjunto(last_conjunto_id) < 3:
+        if count_pending_orders_in_conjunto(last_conjunto_id) < 3:
             conjunto_id = last_conjunto_id
         else:
             new_num = last_num + 1
