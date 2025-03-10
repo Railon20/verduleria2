@@ -23,7 +23,7 @@ from flask import Flask, request, jsonify
 import threading
 from psycopg2 import pool
 from telegram.error import BadRequest
-
+from waitress import serve
 
 # Configuración de logging
 logging.basicConfig(
