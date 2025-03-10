@@ -89,8 +89,8 @@ def admin_only(func):
 
 # Creamos la aplicación Flask y la instancia de Telegram usando el Request personalizado
 app = Flask(__name__)
-#telegram_app = Application.builder().token(TOKEN).request(req).build()
-telegram_app = Application.builder().token(TOKEN).build()
+#application = Application.builder().token(TOKEN).request(req).build()
+application = Application.builder().token(TOKEN).build()
 
 processed_payment_ids = set()
 
@@ -108,7 +108,7 @@ def init_event_loop_and_webhook():
     threading.Thread(target=start_event_loop, args=(event_loop,), daemon=True).start()
 
     # Espera a que se inicie el loop y luego inicializa la aplicación
-    future = asyncio.run_coroutine_threadsafe(telegram_app.initialize(), event_loop)
+    future = asyncio.run_coroutine_threadsafe(application.initialize(), event_loop)
     try:
         # Espera hasta 10 segundos para que se complete la inicialización
         future.result(timeout=10)
@@ -116,7 +116,7 @@ def init_event_loop_and_webhook():
         logger.error("Error al inicializar la aplicación: %s", e)
     
     # Configurar el webhook
-    if telegram_app.bot.set_webhook(WEBHOOK_URL):
+    if application.bot.set_webhook(WEBHOOK_URL):
         logger.info("Webhook configurado correctamente")
     else:
         logger.error("Error al configurar el webhook")
@@ -2985,8 +2985,8 @@ def main() -> None:
 def webhook():
     data = request.get_json(force=True)
     logger.info("Webhook recibido: %s", data)
-    update = Update.de_json(data, telegram_app.bot)
-    future = asyncio.run_coroutine_threadsafe(telegram_app.process_update(update), event_loop)
+    update = Update.de_json(data, application.bot)
+    future = asyncio.run_coroutine_threadsafe(application.process_update(update), event_loop)
     try:
         # Espera hasta 10 segundos para que se procese el update
         future.result(timeout=10)
@@ -2998,7 +2998,7 @@ def webhook():
 # --- (Opcional) Endpoint para configurar manualmente el webhook ---
 @app.route("/setwebhook", methods=["GET"])
 def set_webhook():
-    if telegram_app.bot.set_webhook(WEBHOOK_URL):
+    if application.bot.set_webhook(WEBHOOK_URL):
         return "Webhook configurado correctamente", 200
     else:
         return "Error configurando webhook", 400
@@ -3009,7 +3009,7 @@ if __name__ == "__main__":
     t = threading.Thread(target=start_event_loop, args=(event_loop,), daemon=True)
     t.start()
     # Configura el webhook usando run_coroutine_threadsafe para awaitear el coroutine
-    future = asyncio.run_coroutine_threadsafe(telegram_app.bot.set_webhook(WEBHOOK_URL), event_loop)
+    future = asyncio.run_coroutine_threadsafe(application.bot.set_webhook(WEBHOOK_URL), event_loop)
     try:
         if future.result(timeout=10):
             logger.info("Webhook configurado correctamente")
