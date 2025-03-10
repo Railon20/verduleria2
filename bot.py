@@ -49,6 +49,8 @@ if not TOKEN:
 if not WEBHOOK_URL:
     raise ValueError("No se ha definido WEBHOOK_URL en las variables de entorno.")
 
+application = Application.builder().token(TOKEN).build()
+TELEGRAM_BOT = application.bot
 # Importar Request (para configurar el pool de conexiones)
 #try:
 #    from telegram.request import Request
@@ -178,8 +180,7 @@ MP_SDK = os.getenv('MP_SDK')
 # Conjunto para registrar los IDs de pago ya procesados
 processed_payment_ids = set()
 
-application = Application.builder().token(TOKEN).build()
-TELEGRAM_BOT = application.bot
+
 
 @cached(cache=user_info_cache)
 def get_user_info_cached(telegram_id):
@@ -2947,7 +2948,7 @@ def main() -> None:
     application.add_handler(CommandHandler("ver_conjuntos", ver_conjuntos_no_terminados_handler))
     application.add_handler(CommandHandler("webhookinfo", webhook_info_handler))
 
-    application.add_handler(CommandHandler("ping", ping_handler), group=0)
+    application.add_handler(CommandHandler("ping", ping_handler), group=-1)
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
