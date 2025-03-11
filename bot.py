@@ -1348,11 +1348,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     # Enviar un mensaje de prueba adicional para confirmar el envío
-    #try:
-    #    await update.message.reply_text("Enviando mensaje de prueba...", reply_markup=reply_markup)
-    #    logger.info("Mensaje de prueba enviado correctamente")
-    #except Exception as e:
-    #    logger.exception("Error al enviar el mensaje de prueba")
+    try:
+        await update.message.reply_text("Enviando mensaje de prueba...", reply_markup=reply_markup)
+        logger.info("Mensaje de prueba enviado correctamente")
+    except Exception as e:
+        logger.exception("Error al enviar el mensaje de prueba")
     
     return MAIN_MENU
 
