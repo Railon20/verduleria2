@@ -2224,24 +2224,26 @@ async def cart_selection_handler(update: Update, context: ContextTypes.DEFAULT_T
 def get_equipo_info(equipo_id):
     conn = connect_db()
     cur = conn.cursor()
-    # Suponiendo que la tabla "equipos" tiene los campos trabajador1 y trabajador2
-    cur.execute("SELECT id, trabajador1, trabajador2 FROM equipos WHERE id = %s", (equipo_id,))
+    # Obtenemos los IDs de los miembros del equipo
+    cur.execute("SELECT trabajador1, trabajador2 FROM equipos WHERE id = %s", (equipo_id,))
     row = cur.fetchone()
     if not row:
         cur.close()
         release_db(conn)
         return None
-    equipo_id_db, t1, t2 = row
-    # Consultamos la tabla "users" para obtener los nombres
+    t1, t2 = row
+    # Buscar en la tabla 'users' el nombre registrado de cada miembro
     cur.execute("SELECT name FROM users WHERE telegram_id = %s", (t1,))
-    result1 = cur.fetchone()
-    name1 = result1[0] if result1 else "N/D"
+    res1 = cur.fetchone()
+    name1 = res1[0] if res1 else "N/D"
     cur.execute("SELECT name FROM users WHERE telegram_id = %s", (t2,))
-    result2 = cur.fetchone()
-    name2 = result2[0] if result2 else "N/D"
+    res2 = cur.fetchone()
+    name2 = res2[0] if res2 else "N/D"
     cur.close()
     release_db(conn)
-    return {"id": equipo_id_db, "trabajador1": name1, "trabajador2": name2}
+    # Retornamos un diccionario con el ID del equipo y los nombres de los miembros
+    return {"id": equipo_id, "trabajador1": name1, "trabajador2": name2}
+
 
 
 # Función auxiliar para obtener los conjuntos asignados a un equipo
@@ -2414,6 +2416,8 @@ async def post_adhesion_handler(update: Update, context: ContextTypes.DEFAULT_TY
             keyboard.append([InlineKeyboardButton("Volver al Menú Principal", callback_data="back_main")])
         reply_markup = InlineKeyboardMarkup(keyboard)
         msg = (f"Para pagar el carrito '{cart_name}', haga clic en 'Pagar'.\n"
+                "t\n"
+                "t\n\n"
                "El mensaje de confirmación se enviará cuando se complete el pago.\n\n"
                "Cuando realize el pago, regrese al bot")
         await query.edit_message_text(msg, reply_markup=reply_markup)
