@@ -1349,7 +1349,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     
     # Enviar un mensaje de prueba adicional para confirmar el envío
     try:
-        await update.message.reply_text("Enviando mensaje de prueba...", reply_markup=reply_markup)
+        #await update.message.reply_text("Enviando mensaje de prueba...", reply_markup=reply_markup)
         logger.info("Mensaje de prueba enviado correctamente")
     except Exception as e:
         logger.exception("Error al enviar el mensaje de prueba")
