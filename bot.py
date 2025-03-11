@@ -1774,15 +1774,9 @@ async def select_conjunto_handler(update: Update, context: ContextTypes.DEFAULT_
 
 
 async def asignar_equipo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    Una vez seleccionado un equipo, asigna el conjunto al equipo (actualizando la columna equipo_id en la tabla conjuntos)
-    y notifica al usuario.
-    """
     query = update.callback_query
     await query.answer()
-    logger.info(f"asignar_equipo_handler triggered with data: {query.data}")
     try:
-        # Se espera el callback_data con formato "asignar_{conjunto_id}_equipo_{equipo_id}"
         parts = query.data.split("_")
         conjunto_id = int(parts[1])
         equipo_id = int(parts[3])
@@ -1791,14 +1785,17 @@ async def asignar_equipo_handler(update: Update, context: ContextTypes.DEFAULT_T
         await query.edit_message_text("Error al procesar la selección del equipo.")
         return SELECCIONAR_EQUIPO
 
-    # Asignamos el conjunto al equipo
     assign_conjunto_to_equipo(conjunto_id, equipo_id)
     equipo_info = get_equipo_info(equipo_id)
     if equipo_info:
-        await query.edit_message_text(f"Conjunto asignado exitosamente al Equipo {equipo_info['id']} ({equipo_info['trabajador1']} y {equipo_info['trabajador2']}).")
+        await query.edit_message_text(
+            f"Conjunto asignado exitosamente al Equipo {equipo_info['id']} "
+            f"({equipo_info['trabajador1']} y {equipo_info['trabajador2']})."
+        )
     else:
         await query.edit_message_text("Conjunto asignado, pero no se pudo obtener la información del equipo.")
     return MAIN_MENU
+
     
 #########################################
 # REGISTRO DE LOS NUEVOS HANDLERS EN EL CONVERSATIONHANDLER
@@ -2227,14 +2224,15 @@ async def cart_selection_handler(update: Update, context: ContextTypes.DEFAULT_T
 def get_equipo_info(equipo_id):
     conn = connect_db()
     cur = conn.cursor()
-    cur.execute("SELECT trabajador1, trabajador2 FROM equipos WHERE id = %s", (equipo_id,))
+    # Suponiendo que la tabla "equipos" tiene los campos trabajador1 y trabajador2
+    cur.execute("SELECT id, trabajador1, trabajador2 FROM equipos WHERE id = %s", (equipo_id,))
     row = cur.fetchone()
     if not row:
         cur.close()
         release_db(conn)
         return None
-    t1, t2 = row
-    # Consultar la tabla "users" para obtener el nombre registrado
+    equipo_id_db, t1, t2 = row
+    # Consultamos la tabla "users" para obtener los nombres
     cur.execute("SELECT name FROM users WHERE telegram_id = %s", (t1,))
     result1 = cur.fetchone()
     name1 = result1[0] if result1 else "N/D"
@@ -2243,8 +2241,7 @@ def get_equipo_info(equipo_id):
     name2 = result2[0] if result2 else "N/D"
     cur.close()
     release_db(conn)
-    return {"trabajador1": name1, "trabajador2": name2}
-
+    return {"id": equipo_id_db, "trabajador1": name1, "trabajador2": name2}
 
 
 # Función auxiliar para obtener los conjuntos asignados a un equipo
