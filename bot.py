@@ -2416,8 +2416,8 @@ async def post_adhesion_handler(update: Update, context: ContextTypes.DEFAULT_TY
             keyboard.append([InlineKeyboardButton("Volver al Menú Principal", callback_data="back_main")])
         reply_markup = InlineKeyboardMarkup(keyboard)
         msg = (f"Para pagar el carrito '{cart_name}', haga clic en 'Pagar'.\n"
-                "t\n"
-                "t\n\n"
+               "tkdmadklsdkla\n"
+               "twiqjiqwelkknqw\n\n"
                "El mensaje de confirmación se enviará cuando se complete el pago.\n\n"
                "Cuando realize el pago, regrese al bot")
         await query.edit_message_text(msg, reply_markup=reply_markup)
