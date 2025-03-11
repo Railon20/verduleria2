@@ -2018,28 +2018,29 @@ def get_conjuntos_no_terminados():
         return []
 
 @admin_only
-async def crear_equipo_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    Comando para crear un nuevo equipo.
-    Uso: /crear_equipo <id_trabajador1> <id_trabajador2>
-    """
+async def crear_equipo_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        args = context.args
-        if len(args) < 2:
-            await update.message.reply_text("Uso: /crear_equipo <id_trabajador1> <id_trabajador2>")
-            return MAIN_MENU
-        id1 = int(args[0])
-        id2 = int(args[1])
-    except ValueError:
-        await update.message.reply_text("Los IDs deben ser números.")
-        return MAIN_MENU
+        # Extraer datos del usuario
+        user_id = update.effective_user.id
+        nombre_equipo = "Equipo de prueba"  # Cambiar según lo que el usuario envíe
 
-    equipo_id = crear_nuevo_equipo_db(id1, id2)
-    if equipo_id:
-        await update.message.reply_text(f"Equipo creado exitosamente: Equipo {equipo_id} - {id1} y {id2}.")
-    else:
-        await update.message.reply_text("Error al crear el equipo.")
-    return MAIN_MENU
+        # Conectar a la base de datos
+        conn = connect_db()
+        cur = conn.cursor()
+
+        # Insertar en la base de datos
+        cur.execute("INSERT INTO equipos (nombre, creador_id) VALUES (%s, %s) RETURNING id",
+                    (nombre_equipo, user_id))
+        equipo_id = cur.fetchone()[0]
+
+        conn.commit()
+        cur.close()
+        release_db(conn)
+
+        await update.message.reply_text(f"Equipo creado con éxito. ID: {equipo_id}")
+    except Exception as e:
+        logger.exception(f"Error al crear equipo: {e}")
+        await update.message.reply_text("Error al crear el equipo. Por favor, intente nuevamente.")
 
 def asignar_conjunto_por_numero(numero_conjunto: int, equipo_id: int) -> bool:
     """
