@@ -1346,11 +1346,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     # Enviar un mensaje de prueba adicional para confirmar el envío
-    #try:
-    #    await update.message.reply_text("Enviando mensaje de prueba...", reply_markup=reply_markup)
-    #    logger.info("Mensaje de prueba enviado correctamente")
-    #except Exception as e:
-    #    logger.exception("Error al enviar el mensaje de prueba")
+    try:
+        await update.message.reply_text("Enviando mensaje de prueba...", reply_markup=reply_markup)
+        logger.info("Mensaje de prueba enviado correctamente")
+    except Exception as e:
+        logger.exception("Error al enviar el mensaje de prueba")
     
     return MAIN_MENU
 
@@ -1587,7 +1587,7 @@ async def ayuda_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         "El boton Ordenar, mostrara una lista de productos que podra seleccionar para agregar a un carrito, debera ingresar cuanto de ese producto quiere y agregarlo a un carrito existente o a uno nuevo que cree durante el proceso. Al finalizar, podra agregar mas productos, volver al menu principal o pagar el carrito, lo que enviara una notificacion al personal de la verduleria para que se realize una entrega a la direccion que proporciono al registrarse.\n\n"
         "El boton Historial, mostrara los ultimos 20 pedidos entregdos exitosamente.\n\n"
         "El boton Pedidos Pendientes, mostrara los ultimos 20 pedidos que esten pendientes de ser entregados.\n\n"
-        "El boton Carritos mostrara sus carritos, y al clickear uno, podra elegir entre ver los productos que ya tiene el carrito, agregar productos a ese carrito, quitarlos, pagar el carrito (se realizara el envio a su direccion) y eliminar el carrito.\n\n"
+        "El boton Carritos mostrara sus carritos, y al clickear uno, podra elegir entre ver los productos que ya tiene el carrito, agregar productos a ese carrito, quitarlos y eliminar el carrito.\n\n"
         "El boton Cambiar Direccion, le permitira actualizar la direccion asociada a su cuenta.\n\n"
         "El boton Contacto le mostrara una serie de datos de contacto de la verduleria.\n\n"
     )
@@ -2414,10 +2414,8 @@ async def post_adhesion_handler(update: Update, context: ContextTypes.DEFAULT_TY
             keyboard.append([InlineKeyboardButton("Volver al Menú Principal", callback_data="back_main")])
         reply_markup = InlineKeyboardMarkup(keyboard)
         msg = (f"Para pagar el carrito '{cart_name}', haga clic en 'Pagar'.\n"
-                "Cuando realize el pago, se enviará el pedido al domicilio que proporcionó durante el registro.\n\n"
-                "Si aparece un cartel preguntando si quiere abrir el link, presione en Abrir o Open, y espere a que el formulario de pago carge.\n\n"
                "El mensaje de confirmación se enviará cuando se complete el pago.\n\n"
-               "Cuando realize el pago, regrese al bot."))
+               "Cuando realize el pago, regrese al bot")
         await query.edit_message_text(msg, reply_markup=reply_markup)
         return POST_ADHESION
     elif data.startswith("back_main"):
@@ -2563,7 +2561,6 @@ async def ver_equipos_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     reply_markup = InlineKeyboardMarkup(buttons)
     await query.edit_message_text(message, reply_markup=reply_markup)
     return VER_EQUIPOS  # Asegúrate de tener el estado VER_EQUIPOS definido.
-
 
 # Handler que muestra la información detallada de un equipo y sus conjuntos asignados.
 async def ver_equipo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
