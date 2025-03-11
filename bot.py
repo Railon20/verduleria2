@@ -2017,6 +2017,22 @@ def get_conjuntos_no_terminados():
         logger.error(f"Error al obtener conjuntos no terminados: {e}")
         return []
 
+def crear_trabajador(nombre: str, telegram_id: int):
+    conn = connect_db()
+    cur = conn.cursor()
+    try:
+        # Inserta el trabajador solo si no existe ya
+        cur.execute("SELECT telegram_id FROM trabajadores WHERE telegram_id = %s", (telegram_id,))
+        if cur.fetchone() is None:
+            cur.execute("INSERT INTO trabajadores (nombre, telegram_id) VALUES (%s, %s)", (nombre, telegram_id))
+            conn.commit()
+    except Exception as e:
+        logger.error(f"Error al crear trabajador: {e}")
+        conn.rollback()
+    finally:
+        cur.close()
+        release_db(conn)
+
 @admin_only
 async def crear_equipo_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     try:
@@ -2708,50 +2724,40 @@ def crear_nuevo_equipo_db(trabajador1: int, trabajador2: int):
 
 
 async def crear_nuevo_equipo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    Handler para la opción "Crear Nuevo Equipo".  
-    Se solicita al usuario que ingrese dos IDs de Telegram (separados por un espacio o coma).  
-    Si la entrada es válida, se crea el equipo en la base de datos y se notifica el éxito junto con un botón para volver al menú de gestión.
-    """
-    # Si el handler se activa mediante callback (por ejemplo, al presionar el botón "Crear Nuevo Equipo")
-    # y no hay mensaje de texto aún, se solicita la entrada.
     if update.callback_query:
         await update.callback_query.answer()
         await update.callback_query.edit_message_text("Ingrese los dos IDs de Telegram separados por un espacio o coma:")
         return CREAR_NUEVO_EQUIPO
 
-    # Si el usuario ya ingresó un mensaje (estado CREAR_NUEVO_EQUIPO)
     message_text = update.message.text
-    # Reemplazamos comas por espacios y dividimos para obtener los dos IDs
     ids = message_text.replace(",", " ").split()
     if len(ids) != 2:
-        error_text = "Debe ingresar exactamente dos IDs de Telegram separados por un espacio o coma. Inténtelo nuevamente."
-        await update.message.reply_text(error_text)
+        await update.message.reply_text("Debe ingresar exactamente dos IDs de Telegram separados por un espacio o coma. Inténtelo nuevamente.")
         return CREAR_NUEVO_EQUIPO
 
     try:
         id1 = int(ids[0])
         id2 = int(ids[1])
     except ValueError:
-        error_text = "Los IDs deben ser números. Inténtelo nuevamente."
-        await update.message.reply_text(error_text)
+        await update.message.reply_text("Los IDs deben ser números. Inténtelo nuevamente.")
         return CREAR_NUEVO_EQUIPO
 
-    # Crear el equipo en la base de datos
+    # Asegúrate de que ambos trabajadores existan (puedes pedir también el nombre o usar uno por defecto)
+    crear_trabajador("Trabajador 1", id1)
+    crear_trabajador("Trabajador 2", id2)
+
+    # Crear el equipo
     equipo_id = crear_nuevo_equipo_db(id1, id2)
     if equipo_id is None:
-        error_text = "Error al crear el equipo. Por favor, intente nuevamente."
-        await update.message.reply_text(error_text)
+        await update.message.reply_text("Error al crear el equipo. Por favor, intente nuevamente.")
         return CREAR_NUEVO_EQUIPO
 
-    # Notificar éxito y agregar un botón para volver al menú de gestión de pedidos y equipos.
     success_text = f"Equipo creado exitosamente: Equipo {equipo_id} - {id1} y {id2}."
-    keyboard = [
-        [InlineKeyboardButton("Volver a Gestión de Pedidos y Equipos", callback_data="gestion_pedidos")]
-    ]
+    keyboard = [[InlineKeyboardButton("Volver a Gestión de Pedidos y Equipos", callback_data="gestion_pedidos")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(success_text, reply_markup=reply_markup)
     return GESTION_PEDIDOS
+
 
 # Agrega un handler para el comando /webhookinfo
 async def webhook_info_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
