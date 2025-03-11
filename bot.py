@@ -2417,7 +2417,7 @@ async def post_adhesion_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 "Cuando realize el pago, se enviará el pedido al domicilio que proporcionó durante el registro.\n\n"
                 "Si aparece un cartel preguntando si quiere abrir el link, presione en Abrir o Open, y espere a que el formulario de pago carge.\n\n"
                "El mensaje de confirmación se enviará cuando se complete el pago.\n\n"
-               "Cuando realize el pago, regrese al bot."))
+               "Cuando realize el pago, regrese al bot.")
         await query.edit_message_text(msg, reply_markup=reply_markup)
         return POST_ADHESION
     elif data.startswith("back_main"):
