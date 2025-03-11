@@ -2552,8 +2552,9 @@ async def ver_equipos_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     message = "Equipos:\n\n"
     buttons = []
     for equipo in equipos:
-        # Se muestran los nombres de los integrantes en lugar de sus IDs
-        equipo_text = f"Equipo: {equipo['trabajador1']} y {equipo['trabajador2']} - {equipo['total_pendientes']} pedidos pendientes"
+        # Ahora se incluye el ID del equipo en el mensaje
+        equipo_text = (f"Equipo {equipo['id']}: {equipo['trabajador1']} y {equipo['trabajador2']} "
+                       f"- {equipo['total_pendientes']} pedidos pendientes")
         message += f"{equipo_text}\n"
         # El callback data incluye el id del equipo para pasar al handler ver_equipo_handler.
         buttons.append([InlineKeyboardButton(equipo_text, callback_data=f"ver_equipo_{equipo['id']}")])
