@@ -2225,11 +2225,6 @@ async def cart_selection_handler(update: Update, context: ContextTypes.DEFAULT_T
         return SELECT_CART
 
 def get_equipo_info(equipo_id):
-    """
-    Retorna un diccionario con los nombres de los integrantes del equipo,
-    consultando la tabla "trabajadores" usando el telegram_id de cada integrante.
-    Si no se encuentra la información, devuelve "N/D".
-    """
     conn = connect_db()
     cur = conn.cursor()
     cur.execute("SELECT trabajador1, trabajador2 FROM equipos WHERE id = %s", (equipo_id,))
@@ -2239,17 +2234,16 @@ def get_equipo_info(equipo_id):
         release_db(conn)
         return None
     t1, t2 = row
-    # Obtener nombres de los trabajadores
-    cur.execute("SELECT nombre FROM trabajadores WHERE telegram_id = %s", (t1,))
-    nombre1 = cur.fetchone()
-    cur.execute("SELECT nombre FROM trabajadores WHERE telegram_id = %s", (t2,))
-    nombre2 = cur.fetchone()
+    # Consultar la tabla "users" para obtener el nombre registrado
+    cur.execute("SELECT name FROM users WHERE telegram_id = %s", (t1,))
+    result1 = cur.fetchone()
+    name1 = result1[0] if result1 else "N/D"
+    cur.execute("SELECT name FROM users WHERE telegram_id = %s", (t2,))
+    result2 = cur.fetchone()
+    name2 = result2[0] if result2 else "N/D"
     cur.close()
     release_db(conn)
-    return {
-        "trabajador1": nombre1[0] if nombre1 else "N/D",
-        "trabajador2": nombre2[0] if nombre2 else "N/D"
-    }
+    return {"trabajador1": name1, "trabajador2": name2}
 
 
 
