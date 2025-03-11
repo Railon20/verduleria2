@@ -1073,8 +1073,10 @@ async def cart_pay_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         [InlineKeyboardButton("Volver al menú del carrito", callback_data=f"cartmenu_{cart_id}")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    msg = (f"Para pagar el carrito '{cart_name}', haga clic en 'Pagar'.\n"
-           "El mensaje de confirmación se enviará cuando se complete el pago.")
+    msg = (f"Para pagar el carrito '{cart_name}', haga clic en 'Pagar' y espere a que cargue el formulario de pago (o que carge la aplicacion de Mercado Pago si la tiene), si aparece un error, puede intentarlo de nuevo.\n"
+            "Si aparece un cartel preguntando si quiere abrir el link, presione en 'Abrir' o 'Open'.\n\n"
+            "Cuando complete el pago, se le enviará un código de confirmacion que le debera dar al repartidor cuando llegue con su pedido.\n"
+            "Cuando realize el pago, regrese al bot para saber el código de confirmacion.")
     await query.edit_message_text(msg, reply_markup=reply_markup)
     return CART_MENU
 
@@ -1346,11 +1348,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     # Enviar un mensaje de prueba adicional para confirmar el envío
-    try:
-        await update.message.reply_text("Enviando mensaje de prueba...", reply_markup=reply_markup)
-        logger.info("Mensaje de prueba enviado correctamente")
-    except Exception as e:
-        logger.exception("Error al enviar el mensaje de prueba")
+    #try:
+    #    await update.message.reply_text("Enviando mensaje de prueba...", reply_markup=reply_markup)
+    #    logger.info("Mensaje de prueba enviado correctamente")
+    #except Exception as e:
+    #    logger.exception("Error al enviar el mensaje de prueba")
     
     return MAIN_MENU
 
@@ -2415,11 +2417,10 @@ async def post_adhesion_handler(update: Update, context: ContextTypes.DEFAULT_TY
         else:
             keyboard.append([InlineKeyboardButton("Volver al Menú Principal", callback_data="back_main")])
         reply_markup = InlineKeyboardMarkup(keyboard)
-        msg = (f"Para pagar el carrito '{cart_name}', haga clic en 'Pagar'.\n"
-               "tkdmadklsdkla\n"
-               "twiqjiqwelkknqw\n\n"
-               "El mensaje de confirmación se enviará cuando se complete el pago.\n\n"
-               "Cuando realize el pago, regrese al bot")
+        msg = (f"Para pagar el carrito '{cart_name}', haga clic en 'Pagar' y espere a que cargue el formulario de pago (o que carge la aplicacion de Mercado Pago si la tiene), si aparece un error, puede intentarlo de nuevo.\n"
+               "Si aparece un cartel preguntando si quiere abrir el link, presione en 'Abrir' o 'Open'.\n\n"
+               "Cuando complete el pago, se le enviará un código de confirmacion que le debera dar al repartidor cuando llegue con su pedido.\n"
+               "Cuando realize el pago, regrese al bot para saber el código de confirmacion.")
         await query.edit_message_text(msg, reply_markup=reply_markup)
         return POST_ADHESION
     elif data.startswith("back_main"):
