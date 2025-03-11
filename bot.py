@@ -2418,9 +2418,9 @@ async def post_adhesion_handler(update: Update, context: ContextTypes.DEFAULT_TY
             keyboard.append([InlineKeyboardButton("Volver al Menú Principal", callback_data="back_main")])
         reply_markup = InlineKeyboardMarkup(keyboard)
         msg = (f"Para pagar el carrito '{cart_name}', haga clic en 'Pagar' y espere a que cargue el formulario de pago (o que carge la aplicacion de Mercado Pago si la tiene), si aparece un error, puede intentarlo de nuevo.\n"
-               "Si aparece un cartel preguntando si quiere abrir el link, presione en 'Abrir' o 'Open'.\n\n"
-               "Cuando complete el pago, se le enviará un código de confirmacion que le debera dar al repartidor cuando llegue con su pedido.\n"
-               "Cuando realize el pago, regrese al bot para saber el código de confirmacion.")
+                "Si aparece un cartel preguntando si quiere abrir el link, presione en 'Abrir' o 'Open'.\n\n"
+                "Cuando complete el pago, se le enviará un código de confirmacion que le debera dar al repartidor cuando llegue con su pedido.\n"
+                "Cuando realize el pago, regrese al bot para saber el código de confirmacion.")
         await query.edit_message_text(msg, reply_markup=reply_markup)
         return POST_ADHESION
     elif data.startswith("back_main"):
