@@ -74,7 +74,7 @@ db_pool = pool.ThreadedConnectionPool(
     VER_EQUIPOS, 
     CREAR_NUEVO_EQUIPO,
     CAMBIAR_DIRECCION
-) = range(18)
+) = range(17)
  
 CHANGE_STATUS = 1
 
