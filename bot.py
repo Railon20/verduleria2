@@ -1356,6 +1356,67 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     
     return MAIN_MENU
 
+def get_totales_pendientes():
+    """
+    Retorna una lista de diccionarios, uno por producto, con la suma total
+    de la cantidad de ese producto en todos los pedidos pendientes.
+    Para productos vendidos por 'unidad', se mantiene la cantidad.
+    Para otros (ej. vendidos en gramos), se convierte a kilos.
+    Sólo se incluyen aquellos productos cuya suma sea mayor que cero.
+    """
+    conn = connect_db()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT p.id, p.name, p.sale_type, SUM(ci.quantity) AS total_quantity
+            FROM orders o
+            JOIN cart_items ci ON o.cart_id = ci.cart_id
+            JOIN products p ON ci.product_id = p.id
+            WHERE o.status = 'pendiente'
+            GROUP BY p.id, p.name, p.sale_type
+            HAVING SUM(ci.quantity) > 0
+        """)
+        results = cur.fetchall()
+        totales = []
+        for row in results:
+            product_id, name, sale_type, total_quantity = row
+            totales.append({
+                "id": product_id,
+                "name": name,
+                "sale_type": sale_type,
+                "total_quantity": total_quantity
+            })
+        return totales
+    except Exception as e:
+        logger.error("Error al obtener totales pendientes: %s", e)
+        return []
+    finally:
+        cur.close()
+        release_db(conn)
+
+async def ver_totales_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Comando /ver_totales:
+    Envía un mensaje que, por producto, muestra la cantidad total acumulada en
+    todos los pedidos pendientes. Si el producto se vende por 'unidad', se muestran
+    unidades; si se vende en gramos (o similar), se muestra el total en kilos (cantidad/1000).
+    Solo se muestran los productos que tengan cantidad > 0.
+    """
+    totales = get_totales_pendientes()
+    if not totales:
+        message = "No hay productos en pedidos pendientes."
+    else:
+        lines = []
+        for item in totales:
+            if item["sale_type"].lower() == "unidad":
+                line = f"{item['name']}: {item['total_quantity']} unidades"
+            else:
+                # Asumimos que en otros casos la cantidad está en gramos y la convertimos a kilos
+                kilos = item["total_quantity"] / 1000
+                line = f"{item['name']}: {kilos:.2f} kilos"
+            lines.append(line)
+        message = "\n".join(lines)
+    await update.message.reply_text(message)
 
 
 async def name_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -2934,6 +2995,7 @@ def main() -> None:
     application.add_handler(CommandHandler("revocar_conjunto", revocar_conjunto_command_handler))
     application.add_handler(CommandHandler("ver_conjuntos", ver_conjuntos_no_terminados_handler))
     application.add_handler(CommandHandler("webhookinfo", webhook_info_handler))
+    application.add_handler(CommandHandler("ver_totales", ver_totales_handler))
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
