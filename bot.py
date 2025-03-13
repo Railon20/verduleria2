@@ -275,20 +275,28 @@ def update_order_status(confirmation_code):
         release_db(conn)
 
 async def change_status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Maneja la entrada del código de confirmación para cambiar el estado de un pedido."""
+    """
+    Maneja la entrada del código de confirmación para cambiar el estado de un pedido pendiente.
+    Si el código no es válido, se solicita reingresarlo; si es correcto, se notifica el cambio.
+    """
     code = update.message.text.strip()
-    user_id = update_order_status(code)
+    user_id = update_order_status(code)  # Esta función debe actualizar el estado y devolver el telegram_id del pedido actualizado o None
+    
     if user_id is None:
-        await update.message.reply_text("Código inválido. Por favor, ingrese un código válido:")
-        return CHANGE_STATUS  # Permite reintentar
+        # Código inválido, se solicita nuevamente
+        await update.message.reply_text(
+            "Código de confirmación incorrecto. Por favor, ingresa un código válido:"
+        )
+        return CHANGE_STATUS  # Permanece en el estado para reintentar
     else:
-        # Notificar al usuario cuyo pedido se actualizó
+        # Código correcto, se notifica el cambio de estado al usuario cuyo pedido fue actualizado
         try:
             await context.bot.send_message(chat_id=user_id, text="Su pedido ha sido marcado como entregado.")
         except Exception as e:
-            logger.error(f"Error al notificar al usuario: {e}")
+            logger.error("Error al notificar al usuario: %s", e)
         await update.message.reply_text("Cambio de estado exitoso.")
-        return MAIN_MENU
+        return MAIN_MENU  # O el estado que desees para finalizar la conversación
+
 
 def get_delivered_orders(telegram_id, limit=20):
     """Obtiene los últimos 'limit' pedidos entregados para el usuario."""
@@ -1361,8 +1369,8 @@ def get_totales_pendientes():
     Retorna una lista de diccionarios, uno por producto, con la suma total
     de la cantidad de ese producto en todos los pedidos pendientes.
     Para productos vendidos por 'unidad', se mantiene la cantidad.
-    Para otros (ej. vendidos en gramos), se convierte a kilos.
-    Sólo se incluyen aquellos productos cuya suma sea mayor que cero.
+    Para productos vendidos en gramos, se convierte la cantidad a kilos (cantidad/1000).
+    Se incluyen solo los productos cuya suma sea mayor a cero.
     """
     conn = connect_db()
     cur = conn.cursor()
@@ -1396,12 +1404,18 @@ def get_totales_pendientes():
 
 async def ver_totales_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
-    Comando /ver_totales:
-    Envía un mensaje que, por producto, muestra la cantidad total acumulada en
-    todos los pedidos pendientes. Si el producto se vende por 'unidad', se muestran
-    unidades; si se vende en gramos (o similar), se muestra el total en kilos (cantidad/1000).
-    Solo se muestran los productos que tengan cantidad > 0.
+    Comando /ver_totales.
+    Muestra, para cada producto, la cantidad total en pedidos pendientes.
+    Si el producto se vende por 'unidad', muestra la cantidad en unidades;
+    si se vende en gramos, convierte la suma a kilos.
+    Solo se muestran los productos con cantidad > 0.
+    Este comando se limita solo al administrador y al proveedor.
     """
+    # Restricción: solo ADMIN_CHAT_ID y PROVIDER_CHAT_ID pueden usar este comando
+    if update.effective_user.id not in allowed_ids:
+        await update.message.reply_text("No tienes permisos para usar este comando.")
+        return
+
     totales = get_totales_pendientes()
     if not totales:
         message = "No hay productos en pedidos pendientes."
@@ -1411,7 +1425,7 @@ async def ver_totales_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
             if item["sale_type"].lower() == "unidad":
                 line = f"{item['name']}: {item['total_quantity']} unidades"
             else:
-                # Asumimos que en otros casos la cantidad está en gramos y la convertimos a kilos
+                # Conversión: se asume que la cantidad está en gramos y se muestra en kilos
                 kilos = item["total_quantity"] / 1000
                 line = f"{item['name']}: {kilos:.2f} kilos"
             lines.append(line)
@@ -2019,6 +2033,16 @@ def eliminar_equipo(equipo_id):
             cur.close()
         if conn:
             release_db(conn)
+
+async def cambiar_estado_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Comando /cambiar_estado.
+    Solicita al usuario que ingrese el código de confirmación de un pedido pendiente,
+    para actualizar su estado (por ejemplo, a "entregado").
+    """
+    await update.message.reply_text("Por favor, ingresa el código de confirmación del pedido pendiente para marcarlo como entregado:")
+    return CHANGE_STATUS  # Este estado debe estar manejado en tu ConversationHandler con change_status_handler
+
 
 @admin_only
 async def eliminar_equipo_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -2996,6 +3020,8 @@ def main() -> None:
     application.add_handler(CommandHandler("ver_conjuntos", ver_conjuntos_no_terminados_handler))
     application.add_handler(CommandHandler("webhookinfo", webhook_info_handler))
     application.add_handler(CommandHandler("ver_totales", ver_totales_handler))
+    application.add_handler(CommandHandler("cambiar_estado", cambiar_estado_command_handler))
+
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
@@ -3032,7 +3058,7 @@ def main() -> None:
                 CallbackQueryHandler(cart_add_handler, pattern="^cart_add_.*"),
                 CallbackQueryHandler(cart_remove_handler, pattern="^cart_remove_\\d+$"),
                 CallbackQueryHandler(cart_removeitem_handler, pattern="^cart_removeitem_.*"),
-                CallbackQueryHandler(cart_delete_handler, pattern="^cart_delete_.*"),
+                CallbackQueryHandler(cart_delete_handler, pattern="^cart_delete_.*"),c
                 CallbackQueryHandler(cart_pay_handler, pattern="^cart_pay_.*"),
                 CallbackQueryHandler(show_carts_handler, pattern="^show_carts$"),
                 CallbackQueryHandler(main_menu_handler, pattern="^back_main$")
