@@ -3071,7 +3071,7 @@ def main() -> None:
                 CallbackQueryHandler(cart_add_handler, pattern="^cart_add_.*"),
                 CallbackQueryHandler(cart_remove_handler, pattern="^cart_remove_\\d+$"),
                 CallbackQueryHandler(cart_removeitem_handler, pattern="^cart_removeitem_.*"),
-                CallbackQueryHandler(cart_delete_handler, pattern="^cart_delete_.*"),c
+                CallbackQueryHandler(cart_delete_handler, pattern="^cart_delete_.*"),
                 CallbackQueryHandler(cart_pay_handler, pattern="^cart_pay_.*"),
                 CallbackQueryHandler(show_carts_handler, pattern="^show_carts$"),
                 CallbackQueryHandler(main_menu_handler, pattern="^back_main$")
