@@ -259,9 +259,9 @@ def update_order_status(confirmation_code):
                 (confirmation_code_clean,)
             )
             row = cur.fetchone()
-            logger.info("Resultado de la consulta: %s", row)
+            logger.info("Resultado de la consulta en orders: %s", row)
             if not row:
-                logger.info("No se encontró pedido pendiente con el código '%s'", confirmation_code_clean)
+                logger.info("No se encontró pedido pendiente con código '%s'", confirmation_code_clean)
                 return None
             order_id, telegram_id = row
             cur.execute(
@@ -282,27 +282,21 @@ def update_order_status(confirmation_code):
 
 
 async def change_status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    Maneja la entrada del código de confirmación para cambiar el estado de un pedido pendiente.
-    Si el código no es válido, se solicita reingresarlo; si es correcto, se notifica el cambio.
-    """
     code = update.message.text.strip()
-    user_id = update_order_status(code)  # Esta función debe actualizar el estado y devolver el telegram_id del pedido actualizado o None
-    
+    logger.info("change_status_handler recibido código: '%s'", code)
+    user_id = update_order_status(code)  # Aquí se llama a la función de actualización
     if user_id is None:
-        # Código inválido, se solicita nuevamente
         await update.message.reply_text(
             "Código de confirmación incorrecto. Por favor, ingresa un código válido:"
         )
         return CHANGE_STATUS  # Permanece en el estado para reintentar
     else:
-        # Código correcto, se notifica el cambio de estado al usuario cuyo pedido fue actualizado
         try:
             await context.bot.send_message(chat_id=user_id, text="Su pedido ha sido marcado como entregado.")
         except Exception as e:
             logger.error("Error al notificar al usuario: %s", e)
         await update.message.reply_text("Cambio de estado exitoso.")
-        return MAIN_MENU  # O el estado que desees para finalizar la conversación
+        return MAIN_MENU
 
 
 def get_delivered_orders(telegram_id, limit=20):
