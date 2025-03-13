@@ -1996,6 +1996,19 @@ async def quantity_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await update.message.reply_text(msg, reply_markup=reply_markup)
         return SELECT_CART
 
+def admin_or_worker_only(func):
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_user.id
+        # Permitir si el usuario está en allowed_ids (administradores) o si es trabajador
+        if user_id not in allowed_ids and not es_trabajador(user_id):
+            if update.message:
+                await update.message.reply_text("No tienes permisos para usar esta función.")
+            elif update.callback_query:
+                await update.callback_query.answer("No tienes permisos para usar esta función.", show_alert=True)
+            return ConversationHandler.END
+        return await func(update, context)
+    return wrapper
+
 
 async def back_cart_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Manejador para volver al menú del carrito desde la lista de productos."""
@@ -2034,6 +2047,7 @@ def eliminar_equipo(equipo_id):
         if conn:
             release_db(conn)
 
+@admin_or_worker_only
 async def cambiar_estado_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
     Comando /cambiar_estado.
@@ -2042,7 +2056,6 @@ async def cambiar_estado_command_handler(update: Update, context: ContextTypes.D
     """
     await update.message.reply_text("Por favor, ingresa el código de confirmación del pedido pendiente para marcarlo como entregado:")
     return CHANGE_STATUS  # Este estado debe estar manejado en tu ConversationHandler con change_status_handler
-
 
 @admin_only
 async def eliminar_equipo_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
