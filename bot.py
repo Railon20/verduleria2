@@ -281,19 +281,37 @@ def update_order_status(confirmation_code: str) -> int:
 
 
 async def change_status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    confirmation_code = update.message.text.strip()
-    logger.info("Código recibido para cambio de estado: '%s'", confirmation_code)
-    user_id = update_order_status(confirmation_code)
+    logger.info(">>> Entró en change_status_handler")
+    
+    # Extraer el mensaje y separar en partes (comando y código)
+    text = update.message.text.strip()
+    parts = text.split(maxsplit=1)
+    
+    if len(parts) < 2:
+        await update.message.reply_text(
+            "Por favor, ingresa el código de confirmación del pedido pendiente para marcarlo como entregado:"
+        )
+        return CHANGE_STATUS  # Permanece en el estado para reintentar
+    
+    # Extraer únicamente el código (la parte después del comando)
+    code = parts[1]
+    logger.info("Código recibido: '%s'", code)
+    
+    # Intentar actualizar el pedido usando el código extraído
+    user_id = update_order_status(code)
     if user_id is None:
-        await update.message.reply_text("Código de confirmación incorrecto. Por favor, ingresa un código válido:")
-        return CHANGE_STATUS  # Se mantiene en este estado para reintentar
+        await update.message.reply_text(
+            "Código de confirmación incorrecto. Por favor, ingresa un código válido:"
+        )
+        return CHANGE_STATUS  # Permanece en este estado para reintentar
     else:
         try:
             await context.bot.send_message(chat_id=user_id, text="Su pedido ha sido marcado como entregado.")
         except Exception as e:
             logger.error("Error al notificar al usuario: %s", e)
         await update.message.reply_text("Cambio de estado exitoso.")
-        return MAIN_MENU
+        return MAIN_MENU  # Se finaliza la conversación
+
 
 async def test_change_status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     # Registra entrada para asegurarse de que se ejecute el handler
