@@ -249,30 +249,38 @@ async def show_carts_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return CARTS_LIST
 
 def update_order_status(confirmation_code):
-    """Busca un pedido pendiente con el código dado y lo actualiza a 'entregado'.
-       Retorna el telegram_id del usuario si se actualizó correctamente, o None si no se encontró."""
+    """
+    Busca un pedido pendiente con el código dado (tras quitar espacios) y lo actualiza a 'entregado'.
+    Retorna el telegram_id del usuario si se actualizó correctamente, o None si no se encontró.
+    """
     conn = connect_db()
-    cur = None
     try:
-    # ... usar conn
-        cur = conn.cursor()
-        # Se busca el pedido pendiente con el código dado
-        cur.execute("SELECT id, telegram_id FROM orders WHERE confirmation_code = %s AND status = 'pendiente'", (confirmation_code,))
-        row = cur.fetchone()
-        if not row:
-            return None
-        order_id, telegram_id = row
-        # Actualizar el estado a 'entregado'
-        cur.execute("UPDATE orders SET status = 'entregado', order_date = NOW() WHERE id = %s", (order_id,))
-        conn.commit()
-        return telegram_id
+        # Usamos un contexto para el cursor y aplicamos TRIM al comparar el código
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, telegram_id FROM orders WHERE TRIM(confirmation_code) = %s AND status = 'pendiente'",
+                (confirmation_code.strip(),)
+            )
+            row = cur.fetchone()
+            if not row:
+                logger.info(f"No se encontró pedido pendiente con código '{confirmation_code}'")
+                return None
+            order_id, telegram_id = row
+            cur.execute(
+                "UPDATE orders SET status = 'entregado', order_date = NOW() WHERE id = %s",
+                (order_id,)
+            )
+            conn.commit()
+            logger.info(f"Pedido {order_id} marcado como entregado para usuario {telegram_id}")
+            return telegram_id
     except Exception as e:
         logger.error(f"Error al actualizar el estado del pedido: {e}")
-        if conn:
-            conn.rollback()
+        conn.rollback()
         return None
     finally:
         release_db(conn)
+
+
 
 async def change_status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
