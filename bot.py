@@ -65,6 +65,7 @@ db_pool = pool.ThreadedConnectionPool(
     SELECT_CART, 
     NEW_CART, 
     POST_ADHESION, 
+    CHANGE_STATUS, 
     GESTION_PEDIDOS, 
     CARTS_LIST, 
     CART_MENU, 
@@ -74,10 +75,8 @@ db_pool = pool.ThreadedConnectionPool(
     VER_EQUIPOS, 
     CREAR_NUEVO_EQUIPO,
     CAMBIAR_DIRECCION
-) = range(17)
+) = range(18)
  
-CHANGE_STATUS = 1
-
 ADMIN_CHAT_ID = 6952319386  # Reemplaza con el chat ID de tu administrador
 PROVIDER_CHAT_ID = 222222222 
 
@@ -249,27 +248,33 @@ async def show_carts_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await query.edit_message_text("Tus carritos:", reply_markup=reply_markup)
         return CARTS_LIST
 
-def update_order_status(confirmation_code: str) -> int:
-    code = confirmation_code.strip()
+
+def update_order_status_simple(code: str) -> int:
+    """
+    Recorre todos los pedidos pendientes y, si encuentra uno cuyo confirmation_code (convertido a string)
+    coincida exactamente (después de quitar espacios) con 'code', actualiza su estado a 'entregado'
+    y retorna el telegram_id del usuario. Si no se encuentra, retorna None.
+    """
+    logger.info("Intentando actualizar el estado del pedido con código: '%s'", code)
     conn = connect_db()
     try:
         with conn.cursor() as cur:
-            cur.execute(
-                "SELECT id, telegram_id FROM orders WHERE TRIM(confirmation_code) = %s AND status = 'pendiente'",
-                (code,)
-            )
-            row = cur.fetchone()
-            if row is None:
-                logger.info("No se encontró pedido pendiente con código: '%s'", code)
-                return None
-            order_id, telegram_id = row
-            cur.execute(
-                "UPDATE orders SET status = 'entregado', order_date = NOW() WHERE id = %s",
-                (order_id,)
-            )
-            conn.commit()
-            logger.info("Pedido %s marcado como 'entregado' para el usuario %s", order_id, telegram_id)
-            return telegram_id
+            # Traemos todos los pedidos pendientes
+            cur.execute("SELECT id, telegram_id, confirmation_code FROM orders WHERE status = 'pendiente'")
+            orders = cur.fetchall()
+            for order in orders:
+                order_id, telegram_id, conf_code = order
+                # Convertimos el código almacenado a string y le quitamos espacios
+                if str(conf_code).strip() == code:
+                    cur.execute(
+                        "UPDATE orders SET status = 'entregado', order_date = NOW() WHERE id = %s",
+                        (order_id,)
+                    )
+                    conn.commit()
+                    logger.info("Pedido %s marcado como 'entregado' para el usuario %s", order_id, telegram_id)
+                    return telegram_id
+            logger.info("No se encontró pedido pendiente con código: '%s'", code)
+            return None
     except Exception as e:
         logger.error("Error al actualizar el estado del pedido: %s", e)
         conn.rollback()
@@ -279,27 +284,27 @@ def update_order_status(confirmation_code: str) -> int:
 
 
 async def change_status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Handler para el comando /cambiar_estado.
+    Solicita al usuario que ingrese el código de confirmación.
+    Si el código ingresado no coincide con ningún pedido pendiente, se solicita reingresarlo.
+    Cuando se encuentre un código válido, se notifica el cambio de estado.
+    """
     confirmation_code = update.message.text.strip()
     logger.info("Código recibido para cambio de estado: '%s'", confirmation_code)
-    
-    # Intenta actualizar el pedido usando el código ingresado
-    user_id = update_order_status(confirmation_code)
+    user_id = update_order_status_simple(confirmation_code)
     if user_id is None:
-        # Si el código no es válido, notifica y vuelve a solicitar el código
         await update.message.reply_text(
             "Código de confirmación incorrecto. Por favor, ingresa un código válido:"
         )
-        return CHANGE_STATUS
+        return CHANGE_STATUS  # Permanece en este estado para reintentar
     else:
-        # Si el código es correcto, notifica al usuario propietario del pedido y confirma el cambio
         try:
             await context.bot.send_message(chat_id=user_id, text="Su pedido ha sido marcado como entregado.")
         except Exception as e:
             logger.error("Error al notificar al usuario: %s", e)
         await update.message.reply_text("Cambio de estado exitoso.")
-        return ConversationHandler.END
-
-
+        return MAIN_MENU
 
 def get_delivered_orders(telegram_id, limit=20):
     """Obtiene los últimos 'limit' pedidos entregados para el usuario."""
@@ -2019,10 +2024,13 @@ def eliminar_equipo(equipo_id):
 
 @admin_or_worker_only
 async def cambiar_estado_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text(
-        "Por favor, ingresa el código de confirmación del pedido pendiente para marcarlo como entregado:"
-    )
-    return CHANGE_STATUS
+    """
+    Comando /cambiar_estado.
+    Solicita al usuario que ingrese el código de confirmación de un pedido pendiente,
+    para actualizar su estado (por ejemplo, a "entregado").
+    """
+    await update.message.reply_text("Por favor, ingresa el código de confirmación del pedido pendiente para marcarlo como entregado:")
+    return CHANGE_STATUS  # Este estado debe estar manejado en tu ConversationHandler con change_status_handler
 
 @admin_only
 async def eliminar_equipo_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -3061,6 +3069,7 @@ def main() -> None:
                 CallbackQueryHandler(gestion_pedidos_personal_handler, pattern="^gestion_pedidos_personal$"),
                 CallbackQueryHandler(descargar_pdf_conjunto_handler, pattern="^descargarpdf_\\d+$")
             ],
+            CHANGE_STATUS: [MessageHandler(filters.TEXT & ~filters.COMMAND, change_status_handler)],
             REVOCAR_CONJUNTOS: [
                 CallbackQueryHandler(revocar_conjuntos_handler, pattern="^revocar_conjuntos$"),
                 CallbackQueryHandler(select_equipo_revocar_handler, pattern="^revocar_equipo_\\d+$"),
@@ -3077,17 +3086,7 @@ def main() -> None:
         allow_reentry=True
     )
 
-    conv_handler2 = ConversationHandler(
-    entry_points=[CommandHandler("cambiar_estado", cambiar_estado_command_handler)],
-    states={
-        CHANGE_STATUS: [MessageHandler(filters.TEXT & ~filters.COMMAND, change_status_handler)]
-    },
-    fallbacks=[CommandHandler("cancel", cancel)]
-)
-
     application.add_handler(conv_handler)
-    application.add_handler(conv_handler2)
-
 
 
 # --- Endpoint para recibir las actualizaciones del webhook ---
