@@ -295,6 +295,49 @@ async def change_status_handler(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_text("Cambio de estado exitoso.")
         return MAIN_MENU
 
+async def test_change_status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    # Registra entrada para asegurarse de que se ejecute el handler
+    logger.info(">>> Entró en test_change_status_handler")
+    # Verificamos que update.message exista
+    if not update.message:
+        logger.info("No se recibió update.message")
+        return ConversationHandler.END
+
+    confirmation_code = update.message.text.strip()
+    logger.info("Código recibido: '%s'", confirmation_code)
+    
+    # Ejemplo: buscamos en la base de datos un pedido pendiente con ese código
+    conn = connect_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, telegram_id FROM orders WHERE confirmation_code = %s AND status = 'pendiente'",
+                (confirmation_code,)
+            )
+            row = cur.fetchone()
+            if row is None:
+                logger.info("No se encontró pedido pendiente con el código: '%s'", confirmation_code)
+                await update.message.reply_text("Código de confirmación incorrecto. Intenta nuevamente:")
+                return CHANGE_STATUS
+            order_id, telegram_id = row
+            logger.info("Pedido encontrado: id=%s, telegram_id=%s", order_id, telegram_id)
+            cur.execute(
+                "UPDATE orders SET status = 'entregado', order_date = NOW() WHERE id = %s",
+                (order_id,)
+            )
+            conn.commit()
+            logger.info("Pedido %s actualizado a 'entregado'", order_id)
+    except Exception as e:
+        logger.error("Error durante la actualización: %s", e)
+        conn.rollback()
+        await update.message.reply_text("Error interno. Intenta nuevamente.")
+        return CHANGE_STATUS
+    finally:
+        release_db(conn)
+    
+    await update.message.reply_text("Cambio de estado exitoso.")
+    return MAIN_MENU
+
 
 def get_delivered_orders(telegram_id, limit=20):
     """Obtiene los últimos 'limit' pedidos entregados para el usuario."""
@@ -2999,6 +3042,8 @@ def main() -> None:
     application.add_handler(CommandHandler("webhookinfo", webhook_info_handler))
     application.add_handler(CommandHandler("ver_totales", ver_totales_handler))
     application.add_handler(CommandHandler("cambiar_estado", cambiar_estado_command_handler))
+    application.add_handler(CommandHandler("testcambiar", test_change_status_handler))
+
 
 
     conv_handler = ConversationHandler(
