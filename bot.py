@@ -2075,13 +2075,43 @@ def eliminar_equipo(equipo_id):
 
 @admin_or_worker_only
 async def cambiar_estado_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    Comando /cambiar_estado.
-    Solicita al usuario que ingrese el código de confirmación de un pedido pendiente,
-    para actualizar su estado (por ejemplo, a "entregado").
-    """
-    await update.message.reply_text("Por favor, ingresa el código de confirmación del pedido pendiente para marcarlo como entregado:")
-    return CHANGE_STATUS  # Este estado debe estar manejado en tu ConversationHandler con change_status_handler
+    logger.info(">>> Entró en cambiar_estado_command_handler")
+    # Si se pasan argumentos, úsalos
+    if context.args:
+        code = " ".join(context.args).strip()
+        logger.info("Código recibido desde context.args: '%s'", code)
+        user_id = update_order_status(code)
+        if user_id is None:
+            await update.message.reply_text("Código de confirmación incorrecto. Por favor, ingresa un código válido:")
+            return CHANGE_STATUS
+        else:
+            try:
+                await context.bot.send_message(chat_id=user_id, text="Su pedido ha sido marcado como entregado.")
+            except Exception as e:
+                logger.error("Error al notificar al usuario: %s", e)
+            await update.message.reply_text("Cambio de estado exitoso.")
+            return MAIN_MENU
+    else:
+        # Si no hay argumentos, pedimos el código y nos pasamos al estado CHANGE_STATUS
+        await update.message.reply_text("Por favor, ingresa el código de confirmación del pedido pendiente para marcarlo como entregado:")
+        return CHANGE_STATUS
+
+# Función para procesar el código cuando el usuario lo envía (estado CHANGE_STATUS)
+async def process_change_status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    code = update.message.text.strip()
+    logger.info("Código recibido en process_change_status_handler: '%s'", code)
+    user_id = update_order_status(code)
+    if user_id is None:
+        await update.message.reply_text("Código de confirmación incorrecto. Por favor, ingresa un código válido:")
+        return CHANGE_STATUS
+    else:
+        try:
+            await context.bot.send_message(chat_id=user_id, text="Su pedido ha sido marcado como entregado.")
+        except Exception as e:
+            logger.error("Error al notificar al usuario: %s", e)
+        await update.message.reply_text("Cambio de estado exitoso.")
+        return MAIN_MENU
+
 
 @admin_only
 async def eliminar_equipo_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -3122,7 +3152,7 @@ def main() -> None:
                 CallbackQueryHandler(gestion_pedidos_personal_handler, pattern="^gestion_pedidos_personal$"),
                 CallbackQueryHandler(descargar_pdf_conjunto_handler, pattern="^descargarpdf_\\d+$")
             ],
-            CHANGE_STATUS: [MessageHandler(filters.TEXT & ~filters.COMMAND, change_status_handler)],
+            CHANGE_STATUS: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_change_status_handler)],
             REVOCAR_CONJUNTOS: [
                 CallbackQueryHandler(revocar_conjuntos_handler, pattern="^revocar_conjuntos$"),
                 CallbackQueryHandler(select_equipo_revocar_handler, pattern="^revocar_equipo_\\d+$"),
