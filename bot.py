@@ -249,34 +249,31 @@ async def show_carts_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return CARTS_LIST
 
 
-def update_order_status_simple(code: str) -> int:
-    """
-    Recorre todos los pedidos pendientes y, si encuentra uno cuyo confirmation_code (convertido a string)
-    coincida exactamente (después de quitar espacios) con 'code', actualiza su estado a 'entregado'
-    y retorna el telegram_id del usuario. Si no se encuentra, retorna None.
-    """
-    logger.info("Intentando actualizar el estado del pedido con código: '%s'", code)
+def update_order_status(confirmation_code: str) -> int:
+    code = confirmation_code.strip()
+    logger.info("Buscando pedido pendiente con código: '%s'", code)
     conn = connect_db()
     try:
         with conn.cursor() as cur:
-            # Traemos todos los pedidos pendientes
-            cur.execute("SELECT id, telegram_id, confirmation_code FROM orders WHERE status = 'pendiente'")
-            orders = cur.fetchall()
-            for order in orders:
-                order_id, telegram_id, conf_code = order
-                # Convertimos el código almacenado a string y le quitamos espacios
-                if str(conf_code).strip() == code:
-                    cur.execute(
-                        "UPDATE orders SET status = 'entregado', order_date = NOW() WHERE id = %s",
-                        (order_id,)
-                    )
-                    conn.commit()
-                    logger.info("Pedido %s marcado como 'entregado' para el usuario %s", order_id, telegram_id)
-                    return telegram_id
-            logger.info("No se encontró pedido pendiente con código: '%s'", code)
-            return None
+            # Se compara exactamente el código sin espacios
+            cur.execute(
+                "SELECT id, telegram_id FROM orders WHERE confirmation_code = %s AND status = 'pendiente'",
+                (code,)
+            )
+            row = cur.fetchone()
+            if row is None:
+                logger.info("No se encontró pedido pendiente con código '%s'", code)
+                return None
+            order_id, telegram_id = row
+            cur.execute(
+                "UPDATE orders SET status = 'entregado', order_date = NOW() WHERE id = %s",
+                (order_id,)
+            )
+            conn.commit()
+            logger.info("Pedido %s actualizado a 'entregado' para el usuario %s", order_id, telegram_id)
+            return telegram_id
     except Exception as e:
-        logger.error("Error al actualizar el estado del pedido: %s", e)
+        logger.error("Error al actualizar el pedido: %s", e)
         conn.rollback()
         return None
     finally:
@@ -284,20 +281,12 @@ def update_order_status_simple(code: str) -> int:
 
 
 async def change_status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    Handler para el comando /cambiar_estado.
-    Solicita al usuario que ingrese el código de confirmación.
-    Si el código ingresado no coincide con ningún pedido pendiente, se solicita reingresarlo.
-    Cuando se encuentre un código válido, se notifica el cambio de estado.
-    """
     confirmation_code = update.message.text.strip()
     logger.info("Código recibido para cambio de estado: '%s'", confirmation_code)
-    user_id = update_order_status_simple(confirmation_code)
+    user_id = update_order_status(confirmation_code)
     if user_id is None:
-        await update.message.reply_text(
-            "Código de confirmación incorrecto. Por favor, ingresa un código válido:"
-        )
-        return CHANGE_STATUS  # Permanece en este estado para reintentar
+        await update.message.reply_text("Código de confirmación incorrecto. Por favor, ingresa un código válido:")
+        return CHANGE_STATUS  # Se mantiene en este estado para reintentar
     else:
         try:
             await context.bot.send_message(chat_id=user_id, text="Su pedido ha sido marcado como entregado.")
@@ -305,6 +294,7 @@ async def change_status_handler(update: Update, context: ContextTypes.DEFAULT_TY
             logger.error("Error al notificar al usuario: %s", e)
         await update.message.reply_text("Cambio de estado exitoso.")
         return MAIN_MENU
+
 
 def get_delivered_orders(telegram_id, limit=20):
     """Obtiene los últimos 'limit' pedidos entregados para el usuario."""
