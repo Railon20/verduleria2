@@ -65,7 +65,6 @@ db_pool = pool.ThreadedConnectionPool(
     SELECT_CART, 
     NEW_CART, 
     POST_ADHESION, 
-    CHANGE_STATUS, 
     GESTION_PEDIDOS, 
     CARTS_LIST, 
     CART_MENU, 
@@ -77,6 +76,8 @@ db_pool = pool.ThreadedConnectionPool(
     CAMBIAR_DIRECCION
 ) = range(18)
  
+CHANGE_STATUS = 1
+
 ADMIN_CHAT_ID = 6952319386  # Reemplaza con el chat ID de tu administrador
 PROVIDER_CHAT_ID = 222222222 
 
@@ -249,13 +250,7 @@ async def show_carts_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return CARTS_LIST
 
 def update_order_status(confirmation_code: str) -> int:
-    """
-    Busca un pedido pendiente cuyo confirmation_code (sin espacios al inicio o final)
-    coincida con el ingresado, y lo actualiza a 'entregado'.
-    Retorna el telegram_id del pedido actualizado si se encuentra, o None si no se encuentra.
-    """
     code = confirmation_code.strip()
-    logger.info("Intentando actualizar el estado del pedido con código: '%s'", code)
     conn = connect_db()
     try:
         with conn.cursor() as cur:
@@ -284,26 +279,26 @@ def update_order_status(confirmation_code: str) -> int:
 
 
 async def change_status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    Handler para el comando /cambiar_estado.
-    Lee el código de confirmación ingresado por el usuario, intenta actualizar el estado del pedido.
-    Si el código es incorrecto, solicita un nuevo código. Si es correcto, notifica el cambio.
-    """
     confirmation_code = update.message.text.strip()
     logger.info("Código recibido para cambio de estado: '%s'", confirmation_code)
+    
+    # Intenta actualizar el pedido usando el código ingresado
     user_id = update_order_status(confirmation_code)
     if user_id is None:
+        # Si el código no es válido, notifica y vuelve a solicitar el código
         await update.message.reply_text(
             "Código de confirmación incorrecto. Por favor, ingresa un código válido:"
         )
-        return CHANGE_STATUS  # Se mantiene en este estado para reintentar
+        return CHANGE_STATUS
     else:
+        # Si el código es correcto, notifica al usuario propietario del pedido y confirma el cambio
         try:
             await context.bot.send_message(chat_id=user_id, text="Su pedido ha sido marcado como entregado.")
         except Exception as e:
             logger.error("Error al notificar al usuario: %s", e)
         await update.message.reply_text("Cambio de estado exitoso.")
-        return MAIN_MENU  # O el estado que desees al finalizar
+        return ConversationHandler.END
+
 
 
 def get_delivered_orders(telegram_id, limit=20):
@@ -365,15 +360,6 @@ def get_last_conjunto():
     cur.close()
     release_db(conn)
     return result  # Ej: (3, 1) => id=3, numero_conjunto=1
-
-def count_pending_orders_in_conjunto(conjunto_id):
-    conn = connect_db()
-    cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) FROM orders WHERE conjunto_id = %s AND status = 'pendiente'", (conjunto_id,))
-    count = cur.fetchone()[0]
-    cur.close()
-    release_db(conn)
-    return count
 
 # 1. Función para generar el PDF de un conjunto
 
@@ -1605,35 +1591,11 @@ async def asignar_conjuntos_handler(update: Update, context: ContextTypes.DEFAUL
     return SELECCIONAR_EQUIPO
 
 
-async def revocar_conjuntos_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.callback_query
-    await query.answer()
-    try:
-        await query.edit_message_text("Funcionalidad de Revocar Conjuntos en construcción.")
-    except Exception as e:
-        if "Message is not modified" in str(e):
-            pass
-        else:
-            raise e
-    return GESTION_PEDIDOS
-
 async def ver_equipos_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
     try:
         await query.edit_message_text("Funcionalidad de Ver Equipos en construcción.")
-    except Exception as e:
-        if "Message is not modified" in str(e):
-            pass
-        else:
-            raise e
-    return GESTION_PEDIDOS
-
-async def crear_nuevo_equipo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.callback_query
-    await query.answer()
-    try:
-        await query.edit_message_text("Funcionalidad de Crear Nuevo Equipo en construcción.")
     except Exception as e:
         if "Message is not modified" in str(e):
             pass
@@ -2057,13 +2019,10 @@ def eliminar_equipo(equipo_id):
 
 @admin_or_worker_only
 async def cambiar_estado_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    Comando /cambiar_estado.
-    Solicita al usuario que ingrese el código de confirmación de un pedido pendiente,
-    para actualizar su estado (por ejemplo, a "entregado").
-    """
-    await update.message.reply_text("Por favor, ingresa el código de confirmación del pedido pendiente para marcarlo como entregado:")
-    return CHANGE_STATUS  # Este estado debe estar manejado en tu ConversationHandler con change_status_handler
+    await update.message.reply_text(
+        "Por favor, ingresa el código de confirmación del pedido pendiente para marcarlo como entregado:"
+    )
+    return CHANGE_STATUS
 
 @admin_only
 async def eliminar_equipo_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -3102,7 +3061,6 @@ def main() -> None:
                 CallbackQueryHandler(gestion_pedidos_personal_handler, pattern="^gestion_pedidos_personal$"),
                 CallbackQueryHandler(descargar_pdf_conjunto_handler, pattern="^descargarpdf_\\d+$")
             ],
-            CHANGE_STATUS: [MessageHandler(filters.TEXT & ~filters.COMMAND, change_status_handler)],
             REVOCAR_CONJUNTOS: [
                 CallbackQueryHandler(revocar_conjuntos_handler, pattern="^revocar_conjuntos$"),
                 CallbackQueryHandler(select_equipo_revocar_handler, pattern="^revocar_equipo_\\d+$"),
@@ -3119,7 +3077,17 @@ def main() -> None:
         allow_reentry=True
     )
 
+    conv_handler2 = ConversationHandler(
+    entry_points=[CommandHandler("cambiar_estado", cambiar_estado_command_handler)],
+    states={
+        CHANGE_STATUS: [MessageHandler(filters.TEXT & ~filters.COMMAND, change_status_handler)]
+    },
+    fallbacks=[CommandHandler("cancel", cancel)]
+)
+
     application.add_handler(conv_handler)
+    application.add_handler(conv_handler2)
+
 
 
 # --- Endpoint para recibir las actualizaciones del webhook ---
