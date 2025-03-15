@@ -442,7 +442,7 @@ def generate_conjunto_pdf(conjunto_id, show_confirmation=True):
     conn = connect_db()
     cur = conn.cursor()
     cur.execute(
-        "SELECT id, cart_id, confirmation_code, order_date, telegram_id FROM orders WHERE conjunto_id = %s ORDER BY order_date",
+        "SELECT id, cart_id, confirmation_code, order_date, telegram_id FROM orders WHERE conjunto_id = %s AND status = 'pendiente' ORDER BY order_date",
         (conjunto_id,)
     )
     pedidos = cur.fetchall()
