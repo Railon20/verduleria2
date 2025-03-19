@@ -1666,10 +1666,8 @@ async def contacto_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     # Mensaje de ejemplo (modifícalo con la información real)
     mensaje = (
         "📞 *Contacto Verdulería Online*\n\n"
-        "Teléfono: +1 234 567 890\n"
-        "Email: contacto@verduleriaonline.com\n"
-        "Dirección: Calle Falsa 123, Ciudad Ejemplo\n\n"
-        "Para más información, visita nuestro sitio web: https://www.verduleriaonline.com"
+        "Email: ergiun88@gmail.com\n\n"
+        "WhatsApp: +5493644208142"
     )
     keyboard = [[InlineKeyboardButton("Volver al Menú Principal", callback_data="back_main")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
