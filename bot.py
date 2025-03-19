@@ -1129,7 +1129,7 @@ async def cart_pay_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         [InlineKeyboardButton("Volver al menú del carrito", callback_data=f"cartmenu_{cart_id}")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    msg = (f"Para pagar el carrito "{cart_name}", haga clic en 'Pagar' y espere a que cargue el formulario de pago (o que se abra la aplicación de Mercado Pago si la tiene instalada). Si aparece un error, puede intentarlo de nuevo.\n"
+    msg = (f"Para pagar el carrito \"{cart_name}\", haga clic en 'Pagar' y espere a que cargue el formulario de pago (o que se abra la aplicación de Mercado Pago si la tiene instalada). Si aparece un error, puede intentarlo de nuevo.\n"
             "Si aparece un mensaje preguntando si desea abrir el enlace, presione 'Abrir' o 'Open'.\n\n"
             "Cuando complete el pago, se le enviará un código de confirmación que deberá decir al repartidor cuando reciba su pedido.\n"
             "Después de realizar el pago, regrese al bot para conocer su código de confirmación.")
@@ -2570,7 +2570,7 @@ async def post_adhesion_handler(update: Update, context: ContextTypes.DEFAULT_TY
         else:
             keyboard.append([InlineKeyboardButton("Volver al Menú Principal", callback_data="back_main")])
         reply_markup = InlineKeyboardMarkup(keyboard)
-        msg = (f"Para pagar el carrito "{cart_name}", haga clic en 'Pagar' y espere a que cargue el formulario de pago (o que se abra la aplicación de Mercado Pago si la tiene instalada). Si aparece un error, puede intentarlo de nuevo.\n"
+        msg = (f"Para pagar el carrito \"{cart_name}\", haga clic en 'Pagar' y espere a que cargue el formulario de pago (o que se abra la aplicación de Mercado Pago si la tiene instalada). Si aparece un error, puede intentarlo de nuevo.\n"
                 "Si aparece un mensaje preguntando si desea abrir el enlace, presione 'Abrir' o 'Open'.\n\n"
                 "Cuando complete el pago, se le enviará un código de confirmación que deberá decir al repartidor cuando reciba su pedido.\n"
                 "Después de realizar el pago, regrese al bot para conocer su código de confirmación.")
