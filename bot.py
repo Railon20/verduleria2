@@ -77,7 +77,7 @@ db_pool = pool.ThreadedConnectionPool(
     CAMBIAR_DIRECCION
 ) = range(18)
  
-ADMIN_CHAT_ID = 111111111  # Reemplaza con el chat ID de tu administrador
+ADMIN_CHAT_ID = 6952319386  # Reemplaza con el chat ID de tu administrador
 PROVIDER_CHAT_ID = 222222222
 
 allowed_ids = [ADMIN_CHAT_ID, PROVIDER_CHAT_ID]  # Puedes agregar los IDs del personal adicional aquí
@@ -1236,8 +1236,8 @@ async def send_order_notifications(cart_id, confirmation_code, context, user_id)
         f"Escriba /start para abrir el menu principal"
     )
     await context.bot.send_message(chat_id=user_id, text=message, parse_mode="HTML")
-    await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=message, parse_mode="HTML")
-    await context.bot.send_message(chat_id=PROVIDER_CHAT_ID, text=message, parse_mode="HTML")
+    #await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=message, parse_mode="HTML")
+    #await context.bot.send_message(chat_id=PROVIDER_CHAT_ID, text=message, parse_mode="HTML")
 
 
 def add_product_to_cart(cart_id, product, quantity):
