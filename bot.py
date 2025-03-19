@@ -389,9 +389,9 @@ async def show_history_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         return MAIN_MENU
     text = "Historial de pedidos entregados:\n\n"
     for order in orders:
-        for order in orders:
-            order_id, cart_id, confirmation_code, _ = order
-            text += f"Pedido #{order_id}: Código {confirmation_code}\n"
+        order_id, cart_id, confirmation_code, _ = order
+        text += f"Pedido #{order_id}: Código {confirmation_code}\n"
+
 
     keyboard = [[InlineKeyboardButton("Volver al Menú Principal", callback_data="back_main")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
