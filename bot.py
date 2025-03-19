@@ -77,8 +77,8 @@ db_pool = pool.ThreadedConnectionPool(
     CAMBIAR_DIRECCION
 ) = range(18)
  
-ADMIN_CHAT_ID = 6952319386  # Reemplaza con el chat ID de tu administrador
-PROVIDER_CHAT_ID = 222222222 
+ADMIN_CHAT_ID = 111111111  # Reemplaza con el chat ID de tu administrador
+PROVIDER_CHAT_ID = 222222222
 
 allowed_ids = [ADMIN_CHAT_ID, PROVIDER_CHAT_ID]  # Puedes agregar los IDs del personal adicional aquí
 
@@ -389,12 +389,10 @@ async def show_history_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         return MAIN_MENU
     text = "Historial de pedidos entregados:\n\n"
     for order in orders:
-        order_id, cart_id, confirmation_code, order_date = order
-        if isinstance(order_date, datetime.datetime):
-            order_date_str = order_date.strftime("%Y-%m-%d %H:%M:%S")
-        else:
-            order_date_str = str(order_date)
-        text += f"Pedido #{order_id}: Código {confirmation_code} - Fecha {order_date_str}\n"
+        for order in orders:
+            order_id, cart_id, confirmation_code, _ = order
+            text += f"Pedido #{order_id}: Código {confirmation_code}\n"
+
     keyboard = [[InlineKeyboardButton("Volver al Menú Principal", callback_data="back_main")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(text, reply_markup=reply_markup)
@@ -456,7 +454,7 @@ def generate_conjunto_pdf(conjunto_id, show_confirmation=True):
             fecha = order_date.strftime("%Y-%m-%d %H:%M:%S")
         else:
             fecha = str(order_date)
-        pdf.cell(0, 10, txt=f"Fecha y Hora del pedido: {fecha}", ln=True)
+        #pdf.cell(0, 10, txt=f"Fecha y Hora del pedido: {fecha}", ln=True)
         pdf.ln(2)
         pdf.cell(0, 10, txt="Artículos:", ln=True)
         # Obtener los items del carrito (usando tu función get_cart_details)
@@ -1131,10 +1129,10 @@ async def cart_pay_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         [InlineKeyboardButton("Volver al menú del carrito", callback_data=f"cartmenu_{cart_id}")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    msg = (f"Para pagar el carrito '{cart_name}', haga clic en 'Pagar' y espere a que cargue el formulario de pago (o que carge la aplicacion de Mercado Pago si la tiene), si aparece un error, puede intentarlo de nuevo.\n"
-            "Si aparece un cartel preguntando si quiere abrir el link, presione en 'Abrir' o 'Open'.\n\n"
-            "Cuando complete el pago, se le enviará un código de confirmacion que le debera dar al repartidor cuando llegue con su pedido.\n"
-            "Cuando realize el pago, regrese al bot para saber el código de confirmacion.")
+    msg = (f"Para pagar el carrito "{cart_name}", haga clic en 'Pagar' y espere a que cargue el formulario de pago (o que se abra la aplicación de Mercado Pago si la tiene instalada). Si aparece un error, puede intentarlo de nuevo.\n"
+            "Si aparece un mensaje preguntando si desea abrir el enlace, presione 'Abrir' o 'Open'.\n\n"
+            "Cuando complete el pago, se le enviará un código de confirmación que deberá decir al repartidor cuando reciba su pedido\n."
+            "Después de realizar el pago, regrese al bot para conocer su código de confirmación.")
     await query.edit_message_text(msg, reply_markup=reply_markup)
     return CART_MENU
 
@@ -1228,7 +1226,7 @@ async def send_order_notifications(cart_id, confirmation_code, context, user_id)
     if user_info is None:
         user_info = {"name": "Desconocido", "address": "Desconocida"}
     message = (
-        f"Fecha y Hora del pedido: <b>{now}</b>\n\n"
+        #f"Fecha y Hora del pedido: <b>{now}</b>\n\n"
         f"Artículos:\n{items_text}\n"
         f"Cliente:\n"
         f"Nombre: <b>{user_info['name']}</b>\n"
@@ -1391,7 +1389,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     # Si el usuario ya está registrado, envía el menú principal
     logger.info("Usuario registrado, enviando menú principal")
     keyboard = [
-        [InlineKeyboardButton("Ordenar", callback_data="menu_ordenar")],
+        [InlineKeyboardButton("Hacer Pedido", callback_data="menu_ordenar")],
         [InlineKeyboardButton("Historial", callback_data="menu_historial")],
         [InlineKeyboardButton("Pedidos Pendientes", callback_data="menu_pedidos")],
         [InlineKeyboardButton("Carritos", callback_data="menu_carritos")],
@@ -1518,7 +1516,7 @@ async def address_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     # Mostrar menú principal tras el registro
     keyboard = [
-        [InlineKeyboardButton("Ordenar", callback_data="menu_ordenar")],
+        [InlineKeyboardButton("Hacer Pedido", callback_data="menu_ordenar")],
         [InlineKeyboardButton("Historial", callback_data="menu_historial")],
         [InlineKeyboardButton("Pedidos Pendientes", callback_data="menu_pedidos")],
         [InlineKeyboardButton("Carritos", callback_data="menu_carritos")],
@@ -1580,7 +1578,7 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     elif data in ["back_main", "menu"]:
         keyboard = [
-            [InlineKeyboardButton("Ordenar", callback_data="menu_ordenar")],
+            [InlineKeyboardButton("Hacer Pedido", callback_data="menu_ordenar")],
             [InlineKeyboardButton("Historial", callback_data="menu_historial")],
             [InlineKeyboardButton("Pedidos Pendientes", callback_data="menu_pedidos")],
             [InlineKeyboardButton("Carritos", callback_data="menu_carritos")],
@@ -1686,13 +1684,14 @@ async def ayuda_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     await query.answer()
     # Mensaje de ejemplo (modifícalo con el tutorial deseado)
     mensaje = (
-        "A continuacion se explican las funciones del bot\n\n"
-        "El boton Ordenar, mostrara una lista de productos que podra seleccionar para agregar a un carrito, debera ingresar cuanto de ese producto quiere y agregarlo a un carrito existente o a uno nuevo que cree durante el proceso. Al finalizar, podra agregar mas productos, volver al menu principal o pagar el carrito, lo que enviara una notificacion al personal de la verduleria para que se realize una entrega a la direccion que proporciono al registrarse.\n\n"
-        "El boton Historial, mostrara los ultimos 20 pedidos entregdos exitosamente.\n\n"
-        "El boton Pedidos Pendientes, mostrara los ultimos 20 pedidos que esten pendientes de ser entregados.\n\n"
-        "El boton Carritos mostrara sus carritos, y al clickear uno, podra elegir entre ver los productos que ya tiene el carrito, agregar productos a ese carrito, quitarlos y eliminar el carrito.\n\n"
-        "El boton Cambiar Direccion, le permitira actualizar la direccion asociada a su cuenta.\n\n"
-        "El boton Contacto le mostrara una serie de datos de contacto de la verduleria.\n\n"
+        "A continuación, se explican las funciones del bot:\n\n"
+        "El botón Hacer Pedido mostrará una lista de productos que podrá seleccionar para agregar a un carrito. Deberá ingresar la cantidad deseada de cada producto y añadirlo a un carrito existente o a uno nuevo que cree durante el proceso. Al finalizar, podrá agregar más productos, volver al menú principal o pagar el carrito, lo que enviará una notificación al personal de la verdulería para que se realice una entrega a la dirección que proporcionó al registrarse.\n\n"
+        "El botón Historial mostrará los últimos 20 pedidos entregados exitosamente.\n\n"
+        "El botón Pedidos Pendientes mostrará los últimos 20 pedidos que estén pendientes de entrega.\n\n"
+        "El botón Carritos mostrará sus carritos. Al hacer clic en uno, podrá elegir entre ver los productos que ya tiene el carrito, agregar productos, quitarlos o eliminar el carrito.\n\n"
+        "El botón Cambiar Dirección le permitirá actualizar la dirección asociada a su cuenta.\n\n"
+        "El botón Contacto le mostrará una serie de datos de contacto de la verdulería."
+        "Recuerde que debe escribir /start cada vez que quiera usar nuevamente el bot"
     )
     keyboard = [[InlineKeyboardButton("Volver al Menú Principal", callback_data="back_main")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1947,7 +1946,7 @@ async def product_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     elif data == "menu":
         # Construir el menú principal y regresar a él
         keyboard = [
-            [InlineKeyboardButton("Ordenar", callback_data="menu_ordenar")],
+            [InlineKeyboardButton("Hacer Pedido", callback_data="menu_ordenar")],
             [InlineKeyboardButton("Historial", callback_data="menu_historial")],
             [InlineKeyboardButton("Pedidos Pendientes", callback_data="menu_pedidos")],
             [InlineKeyboardButton("Carritos", callback_data="menu_carritos")],
@@ -2571,16 +2570,16 @@ async def post_adhesion_handler(update: Update, context: ContextTypes.DEFAULT_TY
         else:
             keyboard.append([InlineKeyboardButton("Volver al Menú Principal", callback_data="back_main")])
         reply_markup = InlineKeyboardMarkup(keyboard)
-        msg = (f"Para pagar el carrito '{cart_name}', haga clic en 'Pagar' y espere a que cargue el formulario de pago (o que carge la aplicacion de Mercado Pago si la tiene), si aparece un error, puede intentarlo de nuevo.\n"
-                "Si aparece un cartel preguntando si quiere abrir el link, presione en 'Abrir' o 'Open'.\n\n"
-                "Cuando complete el pago, se le enviará un código de confirmacion que le debera dar al repartidor cuando llegue con su pedido.\n"
-                "Cuando realize el pago, regrese al bot para saber el código de confirmacion.")
+        msg = (f"Para pagar el carrito "{cart_name}", haga clic en 'Pagar' y espere a que cargue el formulario de pago (o que se abra la aplicación de Mercado Pago si la tiene instalada). Si aparece un error, puede intentarlo de nuevo.\n"
+                "Si aparece un mensaje preguntando si desea abrir el enlace, presione 'Abrir' o 'Open'.\n\n"
+                "Cuando complete el pago, se le enviará un código de confirmación que deberá decir al repartidor cuando reciba su pedido.\n"
+                "Después de realizar el pago, regrese al bot para conocer su código de confirmación.")
         await query.edit_message_text(msg, reply_markup=reply_markup)
         return POST_ADHESION
     elif data.startswith("back_main"):
         # Volver al menú principal
         keyboard = [
-            [InlineKeyboardButton("Ordenar", callback_data="menu_ordenar")],
+            [InlineKeyboardButton("Hacer Pedido", callback_data="menu_ordenar")],
             [InlineKeyboardButton("Historial", callback_data="menu_historial")],
             [InlineKeyboardButton("Pedidos Pendientes", callback_data="menu_pedidos")],
             [InlineKeyboardButton("Carritos", callback_data="menu_carritos")],
@@ -2838,12 +2837,8 @@ async def pending_orders_handler(update: Update, context: ContextTypes.DEFAULT_T
 
     text = "Tus pedidos pendientes:\n\n"
     for order in orders:
-        order_id, cart_id, confirmation_code, order_date = order
-        if isinstance(order_date, datetime.datetime):
-            order_date_str = order_date.strftime("%Y-%m-%d %H:%M:%S")
-        else:
-            order_date_str = str(order_date)
-        text += f"Pedido #{order_id}: Código {confirmation_code} - Fecha {order_date_str}\n"
+        order_id, cart_id, confirmation_code, _ = order
+        text += f"Pedido #{order_id}: Código {confirmation_code}\n"
     keyboard = [[InlineKeyboardButton("Volver al Menú Principal", callback_data="back_main")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(text, reply_markup=reply_markup)
