@@ -1486,7 +1486,7 @@ async def name_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     name = update.message.text
     context.user_data['name'] = name
     await update.message.reply_text(
-        "Gracias. Ahora, ingresa tu dirección. A esta dirección se enviarán los pedidos y podrás cambiarla después si quieres:"
+        "Gracias. Ahora, ingresa tu dirección. A esta dirección se enviarán los pedidos. Podrás cambiarla después si quieres. Agrega una breve descripcion de tu hogar para que el repartidor lo encuentre mas facilmente:"
     )
     return ADDRESS
 
@@ -1520,7 +1520,7 @@ async def address_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         [InlineKeyboardButton("Historial", callback_data="menu_historial")],
         [InlineKeyboardButton("Pedidos Pendientes", callback_data="menu_pedidos")],
         [InlineKeyboardButton("Carritos", callback_data="menu_carritos")],
-        [InlineKeyboardButton("Cambiar Direccion", callback_data="menu_cambiar")],
+        [InlineKeyboardButton("Cambiar Dirección", callback_data="menu_cambiar")],
         [InlineKeyboardButton("Contacto", callback_data="menu_contacto")],
         [InlineKeyboardButton("Ayuda", callback_data="menu_ayuda")]
     ]
@@ -1948,7 +1948,7 @@ async def product_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             [InlineKeyboardButton("Historial", callback_data="menu_historial")],
             [InlineKeyboardButton("Pedidos Pendientes", callback_data="menu_pedidos")],
             [InlineKeyboardButton("Carritos", callback_data="menu_carritos")],
-            [InlineKeyboardButton("Cambiar Direccion", callback_data="menu_cambiar")],
+            [InlineKeyboardButton("Cambiar Dirección", callback_data="menu_cambiar")],
             [InlineKeyboardButton("Contacto", callback_data="menu_contacto")],
         [   InlineKeyboardButton("Ayuda", callback_data="menu_ayuda")]
         ]
@@ -2581,7 +2581,7 @@ async def post_adhesion_handler(update: Update, context: ContextTypes.DEFAULT_TY
             [InlineKeyboardButton("Historial", callback_data="menu_historial")],
             [InlineKeyboardButton("Pedidos Pendientes", callback_data="menu_pedidos")],
             [InlineKeyboardButton("Carritos", callback_data="menu_carritos")],
-            [InlineKeyboardButton("Cambiar Direccion", callback_data="menu_cambiar")],
+            [InlineKeyboardButton("Cambiar Dirección", callback_data="menu_cambiar")],
             [InlineKeyboardButton("Contacto", callback_data="menu_contacto")],
         [InlineKeyboardButton("Ayuda", callback_data="menu_ayuda")]
         ]
