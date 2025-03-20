@@ -420,13 +420,18 @@ def get_last_conjunto():
 def generate_conjunto_pdf(conjunto_id, show_confirmation=True):
     """
     Genera un PDF para el conjunto especificado.
-    Se listan los pedidos del conjunto con su fecha/hora de pago, artículos (nombre, cantidad, subtotal),
-    datos del cliente y código de confirmación (este último solo se muestra si show_confirmation es True).
-    También se muestra la cantidad de pedidos restantes al inicio y al final.
+    Se listan los pedidos pendientes del conjunto, mostrando:
+      - Los ítems de cada pedido.
+      - El total del pedido.
+      - La información del cliente.
+      - El código de confirmación (si show_confirmation es True).
+    Además, se dibuja una línea horizontal arriba y abajo de cada pedido para separarlos.
     
     Retorna el nombre del archivo PDF generado.
     """
     from fpdf import FPDF
+    import datetime  # Asegúrate de importar datetime si no está ya importado
+    
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
@@ -436,7 +441,7 @@ def generate_conjunto_pdf(conjunto_id, show_confirmation=True):
     pdf.cell(0, 10, txt=f"Pedidos restantes: {pendientes}", ln=True)
     pdf.ln(5)
     
-    # Obtener todos los pedidos del conjunto ordenados por fecha
+    # Obtener todos los pedidos pendientes del conjunto ordenados por fecha
     conn = connect_db()
     cur = conn.cursor()
     cur.execute(
@@ -449,22 +454,32 @@ def generate_conjunto_pdf(conjunto_id, show_confirmation=True):
     
     for pedido in pedidos:
         order_id, cart_id, confirmation_code, order_date, client_id = pedido
-        # Formatear la fecha
+        # Formatear la fecha (si se requiere, se puede incluir en el PDF)
         if isinstance(order_date, datetime.datetime):
             fecha = order_date.strftime("%Y-%m-%d %H:%M:%S")
         else:
             fecha = str(order_date)
-        #pdf.cell(0, 10, txt=f"Fecha y Hora del pedido: {fecha}", ln=True)
+        
         pdf.ln(2)
+        # Línea horizontal superior para separar el pedido
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+        pdf.ln(2)
+        
         pdf.cell(0, 10, txt="Artículos:", ln=True)
-        # Obtener los items del carrito (usando tu función get_cart_details)
+        # Obtener los ítems del carrito
         items = get_cart_details(cart_id)
+        order_total = 0.0
         for item in items:
             line = f"{item['name']}: {item['quantity']} = {item['subtotal']:.2f}"
+            order_total += float(item['subtotal'])
             pdf.cell(0, 10, txt=line, ln=True)
+        
+        # Mostrar el total del pedido
+        pdf.cell(0, 10, txt=f"Total del pedido: {order_total:.2f}", ln=True)
         pdf.ln(2)
+        
         pdf.cell(0, 10, txt="Cliente:", ln=True)
-        # Obtener información del cliente (usando tu función get_user_info)
+        # Obtener información del cliente
         client_info = get_user_info_cached(client_id)
         if client_info:
             pdf.cell(0, 10, txt=f"Nombre: {client_info['name']}", ln=True)
@@ -472,9 +487,14 @@ def generate_conjunto_pdf(conjunto_id, show_confirmation=True):
         else:
             pdf.cell(0, 10, txt="Nombre: Desconocido", ln=True)
             pdf.cell(0, 10, txt="Dirección: Desconocida", ln=True)
-        # Mostrar el código de confirmación solo si se solicita
+        
+        # Mostrar el código de confirmación si se solicita
         if show_confirmation:
             pdf.cell(0, 10, txt=f"Código de Confirmación: {confirmation_code}", ln=True)
+        
+        pdf.ln(2)
+        # Línea horizontal inferior para separar el pedido
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
         pdf.ln(5)
     
     pdf.ln(5)
@@ -483,6 +503,7 @@ def generate_conjunto_pdf(conjunto_id, show_confirmation=True):
     filename = f"conjunto_{conjunto_id}.pdf"
     pdf.output(filename)
     return filename
+
 
 # -----------------------------------------------------------------------------
 # 2. Función para obtener el equipo al que pertenece un trabajador
