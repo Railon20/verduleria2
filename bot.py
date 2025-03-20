@@ -1312,18 +1312,19 @@ def add_product_to_cart(cart_id, product, quantity):
     """
     Agrega un producto a un carrito.
     Calcula el subtotal y actualiza el total del carrito.
-    Retorna una tupla (total_anterior, subtotal, nuevo_total) si es exitoso;
+    Retorna: (total_anterior, subtotal, nuevo_total) si es exitoso;
     en caso de error, retorna (None, None, None).
     """
     conn = None
     cur = None
     try:
-        # Calcular subtotal según el tipo de venta
+        # Si el producto se vende por unidad, el subtotal es la cantidad multiplicada por el precio.
         if product['sale_type'] == 'unidad':
             subtotal = quantity * float(product['price'])
         else:
-            # Se asume que 'price' es por kilo y 'quantity' se ingresa en gramos
-            subtotal = (quantity * float(product['price'])) / 1000
+            # Para productos vendidos en gramos, se asume que el precio está dado por 100 gramos.
+            # Por ejemplo, si el precio es 100, 100 gramos deben costar 100.
+            subtotal = (quantity * float(product['price'])) / 100
 
         conn = connect_db()
         cur = conn.cursor()
@@ -1354,6 +1355,7 @@ def add_product_to_cart(cart_id, product, quantity):
             cur.close()
         if conn:
             release_db(conn)
+
 
 
 def create_new_cart(telegram_id, cart_name):
