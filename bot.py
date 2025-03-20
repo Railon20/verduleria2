@@ -2424,7 +2424,7 @@ async def cart_selection_handler(update: Update, context: ContextTypes.DEFAULT_T
                f"Subtotal de la adhesión: {subtotal:.2f}\n"
                f"Nuevo total: {nuevo_total:.2f}\n\n"
                f"¿Qué desea hacer a continuación?\n\n"
-               f"Tenga en cuenta que si realiza el pago del carrito fuera del horario de atención (sabados a martes de 9 a 23 horas), el mismo se entregar durante la siguiente jornada laboral")
+               f"Tenga en cuenta que si realiza el pago del carrito fuera del horario de atención (sabados a martes de 9 a 23 horas), el mismo se entregará durante la siguiente jornada laboral.")
         await query.edit_message_text(msg, reply_markup=reply_markup)
         return POST_ADHESION
     elif data == "back_quantity":
