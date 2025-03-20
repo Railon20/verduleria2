@@ -24,6 +24,7 @@ import threading
 from psycopg2 import pool
 from telegram.error import BadRequest
 from waitress import serve
+import json
 
 # Configuración de logging
 logging.basicConfig(
