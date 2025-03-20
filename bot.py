@@ -643,13 +643,18 @@ def create_new_conjunto(numero_conjunto):
     release_db(conn)
     return new_id
 
+
 def insert_order_with_conjunto(cart_id, telegram_id, confirmation_code):
     """
     Inserta un nuevo pedido y lo asigna a un conjunto.
+    Además, guarda el total y un snapshot (en JSON) de los items del carrito
+    en el momento de realizar el pedido.
+    
     La lógica es:
       - Si no existe ningún conjunto, se crea el conjunto 1.
       - Si existe un conjunto y éste tiene menos de 3 pedidos, se asigna ese mismo conjunto.
       - Si el conjunto actual ya tiene 3 pedidos, se crea un nuevo conjunto con el siguiente número.
+    
     Retorna una tupla (order_id, conjunto_id).
     """
     last = get_last_conjunto()
@@ -658,22 +663,40 @@ def insert_order_with_conjunto(cart_id, telegram_id, confirmation_code):
         conjunto_id = create_new_conjunto(new_num)
     else:
         last_conjunto_id, last_num = last
-        if count_pending_orders_in_conjunto(last_conjunto_id) < 500:
+        if count_pending_orders_in_conjunto(last_conjunto_id) < 3:
             conjunto_id = last_conjunto_id
         else:
             new_num = last_num + 1
             conjunto_id = create_new_conjunto(new_num)
+            
+    # Obtener snapshot del carrito actual:
+    products = get_cart_details(cart_id)
+    # Asumimos que get_user_carts ya tiene el total actualizado.
     conn = connect_db()
     cur = conn.cursor()
+    cur.execute("SELECT total FROM carts WHERE id = %s", (cart_id,))
+    row = cur.fetchone()
+    if row is None:
+        total = 0
+    else:
+        total = float(row[0])
+    # Convertir la lista de productos a JSON:
+    snapshot = json.dumps(products)
+
     cur.execute(
-         "INSERT INTO orders (cart_id, telegram_id, confirmation_code, status, conjunto_id) VALUES (%s, %s, %s, %s, %s) RETURNING id",
-         (cart_id, telegram_id, confirmation_code, "pendiente", conjunto_id)
+         """
+         INSERT INTO orders 
+           (cart_id, telegram_id, confirmation_code, status, conjunto_id, cart_total, cart_snapshot)
+         VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
+         """,
+         (cart_id, telegram_id, confirmation_code, "pendiente", conjunto_id, total, snapshot)
     )
     order_id = cur.fetchone()[0]
     conn.commit()
     cur.close()
     release_db(conn)
     return order_id, conjunto_id
+
 
 def count_pending_orders_in_conjunto(conjunto_id):
     """
@@ -1704,15 +1727,12 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 @admin_only
 async def ver_pedido_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
-    Comando /verpedido <código>  
-    Muestra la información del pedido correspondiente al código de confirmación, incluyendo:
-      - ID del pedido y código de confirmación  
-      - Total del carrito (tal como estaba en el momento del pedido)  
-      - Nombre y dirección del cliente  
-      - Listado de productos, sus cantidades y subtotales  
+    Comando /verpedido <código>
+    Muestra la información del pedido correspondiente al código de confirmación, utilizando el snapshot 
+    del carrito (total, productos, cantidades y subtotales tal como estaban al momento del pedido).
+    También muestra el nombre y la dirección del cliente y el estado del pedido.
     Solo puede usarlo el dueño del bot.
     """
-    # Verificamos que se haya pasado el código como argumento
     if not context.args:
         await update.message.reply_text("Uso: /verpedido <código de confirmación>")
         return ConversationHandler.END
@@ -1723,36 +1743,40 @@ async def ver_pedido_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     conn = connect_db()
     try:
         with conn.cursor() as cur:
-            # Realizamos un JOIN entre orders, carts y users para obtener la información necesaria.
             cur.execute("""
-                SELECT o.id, o.cart_id, c.total, o.confirmation_code, o.order_date,
-                       u.name, u.address
+                SELECT o.id, o.cart_id, o.cart_total, o.cart_snapshot, o.confirmation_code, 
+                       o.order_date, o.status, u.name, u.address
                 FROM orders o
-                JOIN carts c ON o.cart_id = c.id
                 JOIN users u ON o.telegram_id = u.telegram_id
-                WHERE o.confirmation_code = %s AND o.status = 'entregado'
+                WHERE o.confirmation_code = %s
                 LIMIT 1;
             """, (code,))
             order = cur.fetchone()
 
             if not order:
-                await update.message.reply_text("Pedido no encontrado o no entregado.")
+                await update.message.reply_text("Pedido no encontrado.")
                 return ConversationHandler.END
 
-            order_id, cart_id, total, confirmation_code, order_date, client_name, client_address = order
+            (order_id, cart_id, cart_total, cart_snapshot, confirmation_code, 
+             order_date, status, client_name, client_address) = order
 
-        # Ahora, obtenemos los detalles del carrito que se usó en el pedido
-        products = get_cart_details(cart_id)
+        # Convertir el snapshot JSON a lista de items
+        import json
+        try:
+            products = json.loads(cart_snapshot)
+        except Exception as e:
+            logger.error("Error al cargar el snapshot JSON: %s", e)
+            products = []
 
-        # Construimos el mensaje con la información del pedido
         details_text = f"Pedido #{order_id}\n"
         details_text += f"Código: {confirmation_code}\n"
+        details_text += f"Estado: {status}\n"
         details_text += f"Cliente: {client_name}\n"
         details_text += f"Dirección: {client_address}\n"
-        details_text += f"Total del carrito: {total:.2f}\n"
-        details_text += "\nProductos:\n"
+        details_text += f"Total del carrito (al momento del pedido): {float(cart_total):.2f}\n\n"
+        details_text += "Productos:\n"
         for item in products:
-            details_text += f" - {item['name']}: {item['quantity']} - {item['subtotal']:.2f}\n"
+            details_text += f" - {item['name']}: {item['quantity']} - {float(item['subtotal']):.2f}\n"
 
         await update.message.reply_text(details_text)
         return ConversationHandler.END
@@ -1764,6 +1788,7 @@ async def ver_pedido_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     finally:
         release_db(conn)
+
 
 
 # Luego, en tu función main() o al registrar los handlers:
