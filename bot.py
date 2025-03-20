@@ -1138,34 +1138,101 @@ async def cart_pay_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 
 def get_user_carts(telegram_id):
-    """Obtiene la lista de carritos del usuario."""
+    """
+    Obtiene la lista de carritos del usuario y calcula el total de cada carrito dinámicamente.
+    """
     conn = None
     cur = None
     try:
         conn = connect_db()
         cur = conn.cursor()
-        cur.execute("SELECT id, name, total FROM carts WHERE telegram_id = %s", (telegram_id,))
+        # Se obtienen los carritos del usuario (sin el campo total)
+        cur.execute("SELECT id, name FROM carts WHERE telegram_id = %s", (telegram_id,))
         rows = cur.fetchall()
         carts = []
         for row in rows:
-            carts.append({'id': row[0], 'name': row[1], 'total': float(row[2])})
+            cart_id = row[0]
+            name = row[1]
+            # Calcular el total del carrito usando los precios actuales
+            cur.execute("""
+                SELECT COALESCE(SUM(
+                    CASE
+                        WHEN p.sale_type = 'unidad' THEN ci.quantity * p.price
+                        WHEN p.sale_type = 'gramos' THEN (ci.quantity * p.price) / 1000
+                        ELSE ci.quantity * p.price
+                    END
+                ), 0)
+                FROM cart_items ci
+                JOIN products p ON ci.product_id = p.id
+                WHERE ci.cart_id = %s
+            """, (cart_id,))
+            total = cur.fetchone()[0]
+            carts.append({'id': cart_id, 'name': name, 'total': float(total)})
         return carts
     except Exception as e:
         logger.error(f"Error al obtener carritos: {e}")
         return []
     finally:
-        if cur: cur.close()
-        if conn: release_db(conn)
+        if cur: 
+            cur.close()
+        if conn: 
+            release_db(conn)
 
-def get_cart_details(cart_id):
-    """Obtiene los detalles de los items del carrito, incluyendo el id del producto."""
+def calculate_cart_total(cart_id):
+    """
+    Calcula el total del carrito de forma dinámica usando los precios actuales.
+    Si el producto se vende en unidades, se multiplica la cantidad por el precio.
+    Si se vende en gramos, se asume que el precio está dado por kilo y se divide la multiplicación entre 1000.
+    """
     conn = None
     cur = None
     try:
         conn = connect_db()
         cur = conn.cursor()
         cur.execute("""
-            SELECT p.id, p.name, ci.quantity, ci.subtotal
+            SELECT COALESCE(SUM(
+                CASE
+                    WHEN p.sale_type = 'unidad' THEN ci.quantity * p.price
+                    WHEN p.sale_type = 'gramos' THEN (ci.quantity * p.price) / 1000
+                    ELSE ci.quantity * p.price
+                END
+            ), 0)
+            FROM cart_items ci
+            JOIN products p ON ci.product_id = p.id
+            WHERE ci.cart_id = %s
+        """, (cart_id,))
+        total = cur.fetchone()[0]
+        return float(total)
+    except Exception as e:
+        logger.error(f"Error al calcular el total del carrito: {e}")
+        return None
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            release_db(conn)
+
+
+def get_cart_details(cart_id):
+    """
+    Obtiene los detalles de los ítems del carrito y calcula el subtotal usando el precio actual.
+    Si el producto se vende en gramos, se calcula el subtotal dividiendo el producto de (cantidad * precio) entre 1000.
+    """
+    conn = None
+    cur = None
+    try:
+        conn = connect_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT 
+                p.id,
+                p.name,
+                ci.quantity,
+                CASE
+                    WHEN p.sale_type = 'unidad' THEN ci.quantity * p.price
+                    WHEN p.sale_type = 'gramos' THEN (ci.quantity * p.price) / 1000
+                    ELSE ci.quantity * p.price
+                END AS subtotal
             FROM cart_items ci
             JOIN products p ON ci.product_id = p.id
             WHERE ci.cart_id = %s
@@ -1184,10 +1251,11 @@ def get_cart_details(cart_id):
         logger.error(f"Error al obtener detalles del carrito: {e}")
         return []
     finally:
-        if cur:
+        if cur: 
             cur.close()
-        if conn:
+        if conn: 
             release_db(conn)
+
 
 
 def get_user_info(telegram_id):
@@ -1242,47 +1310,31 @@ async def send_order_notifications(cart_id, confirmation_code, context, user_id)
 
 def add_product_to_cart(cart_id, product, quantity):
     """
-    Agrega un producto a un carrito.
-    Calcula el subtotal y actualiza el total del carrito.
-    Retorna: (total_anterior, subtotal, nuevo_total)
+    Inserta el producto en el carrito (tabla cart_items) sin almacenar el subtotal.
+    El total se calculará dinámicamente al mostrar el carrito.
     """
     conn = None
     cur = None
     try:
-        # Calcular subtotal según el tipo de venta
-        if product['sale_type'] == 'unidad':
-            subtotal = quantity * float(product['price'])
-        else:
-            # Se asume que 'price' es por 100 gramos y 'quantity' se ingresa en gramos
-            subtotal = quantity * float(product['price']) / 100
-
         conn = connect_db()
         cur = conn.cursor()
-        # Obtener el total actual del carrito
-        cur.execute("SELECT total FROM carts WHERE id = %s", (cart_id,))
-        row = cur.fetchone()
-        if row is None:
-            raise Exception("Carrito no encontrado")
-        total_anterior = float(row[0])
-        nuevo_total = total_anterior + subtotal
-
-        # Insertar el producto en la tabla de items del carrito
         cur.execute(
-            "INSERT INTO cart_items (cart_id, product_id, quantity, subtotal) VALUES (%s, %s, %s, %s)",
-            (cart_id, product['id'], quantity, subtotal)
+            "INSERT INTO cart_items (cart_id, product_id, quantity) VALUES (%s, %s, %s)",
+            (cart_id, product['id'], quantity)
         )
-        # Actualizar el total del carrito
-        cur.execute("UPDATE carts SET total = %s WHERE id = %s", (nuevo_total, cart_id))
         conn.commit()
-        return total_anterior, subtotal, nuevo_total
+        return True
     except Exception as e:
         logger.error(f"Error al agregar producto al carrito: {e}")
         if conn:
             conn.rollback()
-        return None, None, None
+        return False
     finally:
-        if cur: cur.close()
-        if conn: release_db(conn)
+        if cur: 
+            cur.close()
+        if conn: 
+            release_db(conn)
+
 
 def create_new_cart(telegram_id, cart_name):
     """
@@ -2424,7 +2476,8 @@ async def cart_selection_handler(update: Update, context: ContextTypes.DEFAULT_T
                f"Subtotal de la adhesión: {subtotal:.2f}\n"
                f"Nuevo total: {nuevo_total:.2f}\n\n"
                f"¿Qué desea hacer a continuación?\n\n"
-               f"Tenga en cuenta que si realiza el pago del carrito fuera del horario de atención (sabados a martes de 9 a 23 horas), el mismo se entregará durante la siguiente jornada laboral.")
+               f"Tenga en cuenta que si realiza el pago del carrito fuera del horario de atención (sabados a martes de 9 a 23 horas), el mismo se entregará durante la siguiente jornada laboral."
+               f"Tambien debe saber que los totales y subtotales de sus carritos pueden cambiar de un momento a otro debido al cambio constante de los precios de la mercadería.")
         await query.edit_message_text(msg, reply_markup=reply_markup)
         return POST_ADHESION
     elif data == "back_quantity":
@@ -2675,19 +2728,22 @@ async def post_adhesion_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 def create_payment_preference_for_cart(cart_id):
-    """Crea una preferencia de pago para el carrito en producción y retorna (cart_name, init_point)."""
+    """
+    Crea una preferencia de pago para el carrito usando el total calculado dinámicamente.
+    Se consulta el nombre del carrito y se calcula el total con la función calculate_cart_total.
+    """
     conn = None
     cur = None
     try:
         conn = connect_db()
         cur = conn.cursor()
-        cur.execute("SELECT name, total FROM carts WHERE id = %s", (cart_id,))
+        cur.execute("SELECT name FROM carts WHERE id = %s", (cart_id,))
         row = cur.fetchone()
         if not row:
             return None, None
         cart_name = row[0]
-        cart_total = float(row[1])
-        if cart_total <= 0:
+        total = calculate_cart_total(cart_id)
+        if total is None or total <= 0:
             logger.error("El total del carrito es 0 o negativo.")
             return None, None
     except Exception as e:
@@ -2699,14 +2755,14 @@ def create_payment_preference_for_cart(cart_id):
         if conn:
             release_db(conn)
     
-    # Usa tu token de producción
-    sdk = mercadopago.SDK(MP_SDK)  # Reemplaza con tu token de producción
+    # Usar el SDK de Mercado Pago con tu token de producción
+    sdk = mercadopago.SDK(MP_SDK)
     preference_data = {
         "items": [
             {
                 "title": cart_name,
                 "quantity": 1,
-                "unit_price": cart_total
+                "unit_price": total
             }
         ],
         "external_reference": f"{cart_id}",
@@ -2722,6 +2778,7 @@ def create_payment_preference_for_cart(cart_id):
     preference = preference_response.get("response", {})
     init_point = preference.get("init_point")
     return cart_name, init_point
+
 
 # Función que recupera todos los equipos y calcula la suma de pedidos pendientes de todos sus conjuntos asignados.
 def get_all_equipos_for_view():
