@@ -3090,13 +3090,15 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def new_cart_name_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
-    Crea un nuevo carrito para el usuario. Si en context.user_data se encuentran datos de adhesión
-    (producto y cantidad), se agrega el producto al carrito recién creado; de lo contrario, se crea un carrito vacío.
-    Luego muestra la pantalla de "¿Qué desea hacer a continuación?" con opciones:
-      - Agregar más productos
-      - Pagar Carrito
-      - Volver: “Volver al menú del carrito” si el proceso se inició desde un carrito específico (origin == "carrito")
-        o “Volver al Menú Principal” en caso contrario.
+    Crea un nuevo carrito para el usuario.
+    
+    Si el carrito se crea durante el proceso de ordenamiento (cuando context.user_data["origin"] == "ordenar"),
+    y existen datos de adhesión (producto y cantidad) en el contexto, se agrega ese producto al carrito.
+    
+    Si se crea el carrito desde la opción "carritos" (por ejemplo, con origin diferente a "ordenar"),
+    se crea un carrito vacío y se eliminan los datos de producto y cantidad que puedan existir en el contexto.
+    
+    Luego muestra la pantalla con opciones para continuar.
     Retorna el estado POST_ADHESION.
     """
     cart_name = update.message.text.strip()
@@ -3106,29 +3108,35 @@ async def new_cart_name_handler(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_text("Error al crear el carrito.")
         return SELECT_CART
 
-    # **Asignamos el ID del carrito recién creado en el contexto**
+    # Asignar el ID del carrito recién creado en el contexto
     context.user_data['selected_cart_id'] = cart_id
 
-    # Si existen datos de adhesión, se agrega el producto al carrito recién creado.
-    product = context.user_data.get('selected_product')
-    quantity = context.user_data.get('quantity')
-    if product is not None and quantity is not None:
-        total_anterior, subtotal, nuevo_total = add_product_to_cart(cart_id, product, quantity)
-        if total_anterior is None:
-            await update.message.reply_text("Error al agregar el producto al carrito.")
-            return SELECT_CART
-        msg = (f"Se creó el carrito *{cart_name}* y se agregó el producto.\n"
-               f"Total anterior: {total_anterior:.2f}\n"
-               f"Subtotal: {subtotal:.2f}\n"
-               f"Nuevo total: {nuevo_total:.2f}")
-        # Limpiar los datos de adhesión
+    # Si se está en el proceso de ordenamiento ("hacer pedido")
+    if context.user_data.get("origin") == "ordenar":
+        product = context.user_data.get('selected_product')
+        quantity = context.user_data.get('quantity')
+        if product is not None and quantity is not None:
+            total_anterior, subtotal, nuevo_total = add_product_to_cart(cart_id, product, quantity)
+            if total_anterior is None:
+                await update.message.reply_text("Error al agregar el producto al carrito.")
+                return SELECT_CART
+            msg = (f"Se creó el carrito *{cart_name}* y se agregó el producto.\n"
+                   f"Total anterior: {total_anterior:.2f}\n"
+                   f"Subtotal: {subtotal:.2f}\n"
+                   f"Nuevo total: {nuevo_total:.2f}")
+            # Limpiar los datos de adhesión después de agregarlos
+            context.user_data.pop('selected_product', None)
+            context.user_data.pop('quantity', None)
+        else:
+            msg = f"Carrito *{cart_name}* creado correctamente."
+    else:
+        # Si se crea el carrito desde la opción "carritos", se crea vacío y se limpian los datos que puedan estar en el contexto.
         context.user_data.pop('selected_product', None)
         context.user_data.pop('quantity', None)
-    else:
         msg = f"Carrito *{cart_name}* creado correctamente."
 
     # Configurar el botón "Volver":
-    # Si el proceso se inició desde un carrito específico (origin == "carrito") se usa "back_cart_{cart_id}".
+    # Si el proceso se inició desde un carrito específico (origin == "carrito"), se usa "back_cart_{cart_id}".
     # En caso contrario se usa "back_main".
     if context.user_data.get("origin") == "carrito":
         back_button = InlineKeyboardButton("Volver al menú del carrito", callback_data=f"back_cart_{cart_id}")
@@ -3143,6 +3151,7 @@ async def new_cart_name_handler(update: Update, context: ContextTypes.DEFAULT_TY
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=reply_markup)
     return POST_ADHESION
+
 
 async def test_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info("Ejecutando /test")
