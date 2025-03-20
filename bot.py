@@ -1037,6 +1037,8 @@ async def procesar_cambio_direccion_handler(update: Update, context: ContextType
         cur = conn.cursor()
         cur.execute("UPDATE users SET address = %s WHERE telegram_id = %s", (new_address, telegram_id))
         conn.commit()
+        # Invalida la caché para que se actualice la información del usuario
+        user_info_cache.pop(telegram_id, None)
     except Exception as e:
         logger.error(f"Error al actualizar la dirección: {e}")
         await update.message.reply_text("Ocurrió un error al actualizar la dirección. Inténtalo nuevamente.")
@@ -1053,8 +1055,8 @@ async def procesar_cambio_direccion_handler(update: Update, context: ContextType
         text=f"Dirección actualizada exitosamente. Los pedidos serán enviados a: {new_address}",
         reply_markup=reply_markup
     )
-    # Regresa al menú principal
     return MAIN_MENU
+
 
 async def cancelar_cambio_direccion_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
