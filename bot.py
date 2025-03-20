@@ -1592,7 +1592,7 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             keyboard.append([InlineKeyboardButton("Gestión de Pedidos", callback_data="gestion_pedidos_personal")])
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
         rand_val = random.randint(0, 9999)
-        new_text = f"Menú Principal: {now} - {rand_val}"
+        new_text = f"Menú Principal:"
         reply_markup = InlineKeyboardMarkup(keyboard)
         try:
             await query.edit_message_text(new_text, reply_markup=reply_markup)
@@ -1606,6 +1606,61 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     else:
         await query.edit_message_text("Opción no implementada aún.")
         return MAIN_MENU
+
+@admin_only
+async def ver_pedido_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # Verifica que se haya pasado el código como argumento
+    if not context.args:
+        await update.message.reply_text("Uso: /verpedido <código de confirmación>")
+        return
+
+    # Extrae el código y limpia espacios
+    code = context.args[0].strip()
+    logger.info("Buscando pedido con código: '%s'", code)
+    
+    conn = connect_db()
+    cur = conn.cursor()
+    try:
+        # Consulta el pedido por su código (se asume que el código es único)
+        cur.execute(
+            "SELECT id, cart_id, confirmation_code, order_date, telegram_id, status FROM orders WHERE confirmation_code = %s",
+            (code,)
+        )
+        pedido = cur.fetchone()
+        if pedido is None:
+            await update.message.reply_text("No se encontró ningún pedido con ese código.")
+        else:
+            order_id, cart_id, confirmation_code, order_date, telegram_id, status = pedido
+            
+            # Obtener la información del usuario que realizó el pedido
+            user_info = get_user_info_cached(telegram_id)
+            if user_info is None:
+                user_info = {"name": "Desconocido", "address": "No definida"}
+            
+            # Formatear la fecha (opcional)
+            fecha_str = order_date.strftime("%Y-%m-%d %H:%M:%S") if isinstance(order_date, datetime.datetime) else str(order_date)
+            
+            # Preparar el mensaje con toda la información
+            text = (
+                f"Pedido #{order_id}\n"
+                f"Código de confirmación: {confirmation_code}\n"
+                f"Carrito: {cart_id}\n"
+                f"Fecha: {fecha_str}\n"
+                f"Estado: {status}\n"
+                f"Nombre del cliente: {user_info['name']}\n"
+                f"Dirección actual: {user_info['address']}"
+            )
+            await update.message.reply_text(text)
+    except Exception as e:
+        logger.error("Error al buscar el pedido: %s", e)
+        await update.message.reply_text("Ocurrió un error al buscar el pedido.")
+    finally:
+        cur.close()
+        release_db(conn)
+
+
+
+# Luego, en tu función main() o al registrar los handlers:
     
 async def cancelar_cambio_direccion_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
@@ -3084,6 +3139,7 @@ def main() -> None:
     application.add_handler(CommandHandler("ver_totales", ver_totales_handler))
     application.add_handler(CommandHandler("cambiar_estado", cambiar_estado_command_handler))
     application.add_handler(CommandHandler("testcambiar", test_change_status_handler))
+    application.add_handler(CommandHandler("verpedido", ver_pedido_handler))
 
 
 
