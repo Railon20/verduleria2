@@ -1989,7 +1989,6 @@ async def asignar_equipo_handler(update: Update, context: ContextTypes.DEFAULT_T
 
 
 async def product_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Manejador cuando se selecciona un producto o se pulsa 'Volver'."""
     query = update.callback_query
     await query.answer()
     data = query.data
@@ -2001,17 +2000,21 @@ async def product_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             return ORDERING
         # Guardamos el producto seleccionado para usarlo en la siguiente etapa
         context.user_data['selected_product'] = product
-        # Mostrar precio según tipo de venta
+        
+        # Según el tipo de venta, definimos el texto del precio y la pregunta:
         if product['sale_type'] == 'unidad':
             price_text = f"Precio por unidad: {product['price']}"
+            question = "¿Cuántas unidades desea agregar?"
         else:
             price_text = f"Precio por 100 gramos: {product['price']}"
+            question = "¿Cuántos gramos desea agregar?"
+        
         await query.edit_message_text(
-            f"{product['name']}\n{price_text}\n\n¿Cuánto desea agregar?"
+            f"{product['name']}\n{price_text}\n\n{question}"
         )
         return ASK_QUANTITY
     elif data == "menu":
-        # Construir el menú principal y regresar a él
+        # Volver al menú principal
         keyboard = [
             [InlineKeyboardButton("Hacer Pedido", callback_data="menu_ordenar")],
             [InlineKeyboardButton("Historial", callback_data="menu_historial")],
@@ -2019,7 +2022,7 @@ async def product_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             [InlineKeyboardButton("Carritos", callback_data="menu_carritos")],
             [InlineKeyboardButton("Cambiar Dirección", callback_data="menu_cambiar")],
             [InlineKeyboardButton("Contacto", callback_data="menu_contacto")],
-        [   InlineKeyboardButton("Ayuda", callback_data="menu_ayuda")]
+            [InlineKeyboardButton("Ayuda", callback_data="menu_ayuda")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text("Menú Principal:", reply_markup=reply_markup)
@@ -2421,7 +2424,7 @@ async def cart_selection_handler(update: Update, context: ContextTypes.DEFAULT_T
                f"Subtotal de la adhesión: {subtotal:.2f}\n"
                f"Nuevo total: {nuevo_total:.2f}\n\n"
                f"¿Qué desea hacer a continuación?\n\n"
-               f"Tenga en cuenta que si realiza el pago fuera del horario de atencion, el mismo se entregar durante la siguiente jornada laboral")
+               f"Tenga en cuenta que si realiza el pago del carrito fuera del horario de atencion (sabados a martes de 9 a 23 horas), el mismo se entregar durante la siguiente jornada laboral")
         await query.edit_message_text(msg, reply_markup=reply_markup)
         return POST_ADHESION
     elif data == "back_quantity":
