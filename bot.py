@@ -2074,15 +2074,17 @@ async def product_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             return ORDERING
         # Guardamos el producto seleccionado para usarlo en la siguiente etapa
         context.user_data['selected_product'] = product
-        # Mostrar precio según tipo de venta
+        # Determinar el texto según el tipo de venta
         if product['sale_type'] == 'unidad':
             price_text = f"Precio por unidad: {product['price']}"
+            unit_text = "unidades"
         else:
-            # Se aclara que el precio corresponde a 1 kilo
+            # Se aclara que el precio corresponde a 1 kg
             price_text = f"Precio por 1 kilo: {product['price']}"
+            unit_text = "gramos"
+        # Modificamos el mensaje para especificar en qué medida se debe ingresar la cantidad
         await query.edit_message_text(
-            f"{product['name']}\n{price_text}\n\n¿Cuánto desea agregar?"
-        )
+            f"{product['name']}\n{price_text}\n\n¿Cuanto desea agregar?. Escriba la cantidad en {unit_text}.")
         return ASK_QUANTITY
     elif data == "menu":
         # Construir el menú principal y regresar a él
