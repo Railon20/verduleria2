@@ -1317,12 +1317,12 @@ def add_product_to_cart(cart_id, product, quantity):
     conn = None
     cur = None
     try:
-        # Calcular subtotal según el tipo de venta:
-        # Si se vende por unidad, se multiplica normalmente.
-        # Si se vende en gramos (precio por kilo), se divide por 1000.
-        if product['sale_type'].lower() == 'unidad':
+        # Calcular subtotal según el tipo de venta
+        if product['sale_type'] == 'unidad':
             subtotal = quantity * float(product['price'])
         else:
+            # Se asume que 'price' es el precio por 1 kilo y 'quantity' se ingresa en gramos.
+            # Por tanto, el costo es (cantidad/1000)*precio.
             subtotal = quantity * float(product['price']) / 1000
 
         conn = connect_db()
@@ -1350,10 +1350,11 @@ def add_product_to_cart(cart_id, product, quantity):
             conn.rollback()
         return None, None, None
     finally:
-        if cur:
+        if cur: 
             cur.close()
-        if conn:
+        if conn: 
             release_db(conn)
+
 
 
 def create_new_cart(telegram_id, cart_name):
@@ -2061,6 +2062,7 @@ async def asignar_equipo_handler(update: Update, context: ContextTypes.DEFAULT_T
 
 
 async def product_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Manejador cuando se selecciona un producto o se pulsa 'Volver'."""
     query = update.callback_query
     await query.answer()
     data = query.data
@@ -2072,21 +2074,18 @@ async def product_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             return ORDERING
         # Guardamos el producto seleccionado para usarlo en la siguiente etapa
         context.user_data['selected_product'] = product
-        
-        # Según el tipo de venta, definimos el texto del precio y la pregunta:
+        # Mostrar precio según tipo de venta
         if product['sale_type'] == 'unidad':
             price_text = f"Precio por unidad: {product['price']}"
-            question = "¿Cuántas unidades desea agregar?"
         else:
-            price_text = f"Precio por 100 gramos: {product['price']}"
-            question = "¿Cuántos gramos desea agregar?"
-        
+            # Se aclara que el precio corresponde a 1 kilo
+            price_text = f"Precio por 1 kilo: {product['price']}"
         await query.edit_message_text(
-            f"{product['name']}\n{price_text}\n\n{question}"
+            f"{product['name']}\n{price_text}\n\n¿Cuánto desea agregar?"
         )
         return ASK_QUANTITY
     elif data == "menu":
-        # Volver al menú principal
+        # Construir el menú principal y regresar a él
         keyboard = [
             [InlineKeyboardButton("Hacer Pedido", callback_data="menu_ordenar")],
             [InlineKeyboardButton("Historial", callback_data="menu_historial")],
@@ -2117,15 +2116,15 @@ async def quantity_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await update.message.reply_text("Error: Producto no seleccionado.")
         return ORDERING
 
-    # Calcular subtotal y preparar mensaje según el tipo de venta
-    if product['sale_type'].lower() == 'unidad':
+    # Calcular subtotal
+    if product['sale_type'] == 'unidad':
         subtotal = quantity * float(product['price'])
-        quantity_text = "unidades"
     else:
+        # Se asume que 'price' es el precio por 1 kilo y 'quantity' se ingresa en gramos.
         subtotal = quantity * float(product['price']) / 1000
-        quantity_text = "gramos"
     context.user_data['subtotal'] = subtotal
 
+    # Si se inició desde "carritos", es que ya hay un carrito preseleccionado
     if context.user_data.get("origin") == "carrito" and 'selected_cart_id' in context.user_data:
         cart_id = context.user_data['selected_cart_id']
         total_anterior, sub, nuevo_total = add_product_to_cart(cart_id, product, quantity)
@@ -2146,6 +2145,7 @@ async def quantity_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await update.message.reply_text(msg, reply_markup=reply_markup)
         return POST_ADHESION
     else:
+        # Si se inició desde "ordenar", siempre se debe pedir seleccionar un carrito
         context.user_data.pop('selected_cart_id', None)
         telegram_id = update.effective_user.id
         carts = get_user_carts(telegram_id)
@@ -2155,10 +2155,13 @@ async def quantity_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         keyboard.append([InlineKeyboardButton("Volver", callback_data="back_quantity")])
         keyboard.append([InlineKeyboardButton("Nuevo Carrito", callback_data="new_cart")])
         reply_markup = InlineKeyboardMarkup(keyboard)
-        msg = (f"Subtotal para {product['name']} ({quantity} {quantity_text}): {subtotal:.2f}\n"
-               "Elige uno de tus carritos para agregar el producto:")
+        # Se muestra el precio por 1 kg para aclarar
+        msg = (f"Subtotal para {product['name']} ({quantity} " +
+               ("unidades" if product['sale_type']=='unidad' else "gramos") +
+               f"): {subtotal:.2f}\nElige uno de tus carritos para agregar el producto:")
         await update.message.reply_text(msg, reply_markup=reply_markup)
         return SELECT_CART
+
 
 def admin_or_worker_only(func):
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
