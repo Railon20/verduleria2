@@ -1629,35 +1629,49 @@ async def ver_pedido_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         pedido = cur.fetchone()
         if pedido is None:
             await update.message.reply_text("No se encontró ningún pedido con ese código.")
-        else:
-            order_id, cart_id, confirmation_code, order_date, telegram_id, status = pedido
-            
-            # Obtener la información del usuario que realizó el pedido
-            user_info = get_user_info_cached(telegram_id)
-            if user_info is None:
-                user_info = {"name": "Desconocido", "address": "No definida"}
-            
-            # Formatear la fecha (opcional)
-            fecha_str = order_date.strftime("%Y-%m-%d %H:%M:%S") if isinstance(order_date, datetime.datetime) else str(order_date)
-            
-            # Preparar el mensaje con toda la información
-            text = (
-                f"Pedido #{order_id}\n"
-                f"Código de confirmación: {confirmation_code}\n"
-                f"Carrito: {cart_id}\n"
-                f"Fecha: {fecha_str}\n"
-                f"Estado: {status}\n"
-                f"Nombre del cliente: {user_info['name']}\n"
-                f"Dirección actual: {user_info['address']}"
-            )
-            await update.message.reply_text(text)
+            return
+        order_id, cart_id, confirmation_code, order_date, telegram_id, status = pedido
+
+        # Obtener la información del usuario que realizó el pedido
+        user_info = get_user_info_cached(telegram_id)
+        if user_info is None:
+            user_info = {"name": "Desconocido", "address": "No definida"}
+
+        # Obtener los detalles de los productos en el carrito
+        cart_items = get_cart_details(cart_id)
+        items_text = ""
+        for item in cart_items:
+            items_text += f"- {item['name']} (Cantidad: {item['quantity']}, Subtotal: {item['subtotal']:.2f})\n"
+        if items_text == "":
+            items_text = "El carrito está vacío.\n"
+
+        # Obtener el total del carrito (se supone que está almacenado en la tabla 'carts')
+        cur.execute("SELECT total FROM carts WHERE id = %s", (cart_id,))
+        row = cur.fetchone()
+        cart_total = row[0] if row else "N/D"
+
+        # Formatear la fecha si está disponible
+        fecha_str = order_date.strftime("%Y-%m-%d %H:%M:%S") if isinstance(order_date, datetime.datetime) else str(order_date)
+
+        # Construir el mensaje final
+        text = (
+            f"Pedido #{order_id}\n"
+            f"Código de confirmación: {confirmation_code}\n"
+            f"Carrito ID: {cart_id}\n"
+            f"Fecha: {fecha_str}\n"
+            f"Estado: {status}\n\n"
+            f"Productos en el carrito:\n{items_text}\n"
+            f"Total del carrito: {cart_total}\n\n"
+            f"Nombre del cliente: {user_info['name']}\n"
+            f"Dirección actual: {user_info['address']}"
+        )
+        await update.message.reply_text(text)
     except Exception as e:
         logger.error("Error al buscar el pedido: %s", e)
         await update.message.reply_text("Ocurrió un error al buscar el pedido.")
     finally:
         cur.close()
         release_db(conn)
-
 
 
 # Luego, en tu función main() o al registrar los handlers:
