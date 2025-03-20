@@ -1704,68 +1704,66 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 @admin_only
 async def ver_pedido_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
-    Muestra los detalles de un pedido en base a su código de confirmación.
-    Se utiliza la información almacenada en la tabla orders y la instantánea en order_items,
-    de modo que se vean los datos del carrito en el momento de la compra.
-    Este comando es exclusivo para el dueño del bot.
-    Uso: /verpedido <código de confirmación>
+    Comando /verpedido <código>  
+    Muestra la información del pedido correspondiente al código de confirmación, incluyendo:
+      - ID del pedido y código de confirmación  
+      - Total del carrito (tal como estaba en el momento del pedido)  
+      - Nombre y dirección del cliente  
+      - Listado de productos, sus cantidades y subtotales  
+    Solo puede usarlo el dueño del bot.
     """
-    # Extraer el código de confirmación (se espera que venga como argumento)
-    text = update.message.text.strip()
-    parts = text.split()
-    if len(parts) < 2:
+    # Verificamos que se haya pasado el código como argumento
+    if not context.args:
         await update.message.reply_text("Uso: /verpedido <código de confirmación>")
         return ConversationHandler.END
 
-    code = parts[1]
+    code = context.args[0].strip()
+    logger.info("Comando /verpedido recibido para el código: '%s'", code)
 
-    # Conectarse a la base de datos y buscar el pedido con ese código
     conn = connect_db()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT id, cart_id, total, confirmation_code, order_date, telegram_id
-        FROM orders
-        WHERE confirmation_code = %s
-    """, (code,))
-    order = cur.fetchone()
-    if order is None:
-        await update.message.reply_text("No se encontró un pedido con ese código.")
-        cur.close()
-        release_db(conn)
+    try:
+        with conn.cursor() as cur:
+            # Realizamos un JOIN entre orders, carts y users para obtener la información necesaria.
+            cur.execute("""
+                SELECT o.id, o.cart_id, c.total, o.confirmation_code, o.order_date,
+                       u.name, u.address
+                FROM orders o
+                JOIN carts c ON o.cart_id = c.id
+                JOIN users u ON o.telegram_id = u.telegram_id
+                WHERE o.confirmation_code = %s AND o.status = 'entregado'
+                LIMIT 1;
+            """, (code,))
+            order = cur.fetchone()
+
+            if not order:
+                await update.message.reply_text("Pedido no encontrado o no entregado.")
+                return ConversationHandler.END
+
+            order_id, cart_id, total, confirmation_code, order_date, client_name, client_address = order
+
+        # Ahora, obtenemos los detalles del carrito que se usó en el pedido
+        products = get_cart_details(cart_id)
+
+        # Construimos el mensaje con la información del pedido
+        details_text = f"Pedido #{order_id}\n"
+        details_text += f"Código: {confirmation_code}\n"
+        details_text += f"Cliente: {client_name}\n"
+        details_text += f"Dirección: {client_address}\n"
+        details_text += f"Total del carrito: {total:.2f}\n"
+        details_text += "\nProductos:\n"
+        for item in products:
+            details_text += f" - {item['name']}: {item['quantity']} - {item['subtotal']:.2f}\n"
+
+        await update.message.reply_text(details_text)
         return ConversationHandler.END
 
-    order_id, cart_id, order_total, confirmation_code, order_date, client_id = order
+    except Exception as e:
+        logger.error("Error en ver pedido: %s", e)
+        await update.message.reply_text("Error al obtener el pedido.")
+        return ConversationHandler.END
 
-    # Obtener información del cliente (nombre y dirección)
-    client_info = get_user_info_cached(client_id)
-    if client_info:
-        client_text = f"Nombre: {client_info['name']}\nDirección: {client_info['address']}\n\n"
-    else:
-        client_text = "Información del cliente no disponible.\n\n"
-
-    # Consultar los ítems almacenados en order_items para este pedido
-    cur.execute("""
-        SELECT product_name, quantity, subtotal
-        FROM order_items
-        WHERE order_id = %s
-    """, (order_id,))
-    items = cur.fetchall()
-    cur.close()
-    release_db(conn)
-
-    # Construir el mensaje con los detalles del pedido
-    message = f"Detalles del Pedido (Código: {confirmation_code}):\n\n"
-    message += client_text
-    message += f"Total del pedido: {order_total:.2f}\n\n"
-    if items:
-        message += "Ítems:\n"
-        for product_name, quantity, subtotal in items:
-            message += f"• {product_name}: {quantity} = {subtotal:.2f}\n"
-    else:
-        message += "No se encontraron ítems en el pedido.\n"
-
-    await update.message.reply_text(message)
-    return ConversationHandler.END
+    finally:
+        release_db(conn)
 
 
 # Luego, en tu función main() o al registrar los handlers:
