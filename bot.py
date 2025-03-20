@@ -1310,29 +1310,49 @@ async def send_order_notifications(cart_id, confirmation_code, context, user_id)
 
 def add_product_to_cart(cart_id, product, quantity):
     """
-    Inserta el producto en el carrito (tabla cart_items) sin almacenar el subtotal.
-    El total se calculará dinámicamente al mostrar el carrito.
+    Agrega un producto a un carrito.
+    Calcula el subtotal y actualiza el total del carrito.
+    Retorna una tupla (total_anterior, subtotal, nuevo_total) si es exitoso;
+    en caso de error, retorna (None, None, None).
     """
     conn = None
     cur = None
     try:
+        # Calcular subtotal según el tipo de venta
+        if product['sale_type'] == 'unidad':
+            subtotal = quantity * float(product['price'])
+        else:
+            # Se asume que 'price' es por kilo y 'quantity' se ingresa en gramos
+            subtotal = (quantity * float(product['price'])) / 1000
+
         conn = connect_db()
         cur = conn.cursor()
+        # Obtener el total actual del carrito
+        cur.execute("SELECT total FROM carts WHERE id = %s", (cart_id,))
+        row = cur.fetchone()
+        if row is None:
+            raise Exception("Carrito no encontrado")
+        total_anterior = float(row[0])
+        nuevo_total = total_anterior + subtotal
+
+        # Insertar el producto en la tabla de items del carrito
         cur.execute(
-            "INSERT INTO cart_items (cart_id, product_id, quantity) VALUES (%s, %s, %s)",
-            (cart_id, product['id'], quantity)
+            "INSERT INTO cart_items (cart_id, product_id, quantity, subtotal) VALUES (%s, %s, %s, %s)",
+            (cart_id, product['id'], quantity, subtotal)
         )
+        # Actualizar el total del carrito
+        cur.execute("UPDATE carts SET total = %s WHERE id = %s", (nuevo_total, cart_id))
         conn.commit()
-        return True
+        return total_anterior, subtotal, nuevo_total
     except Exception as e:
         logger.error(f"Error al agregar producto al carrito: {e}")
         if conn:
             conn.rollback()
-        return False
+        return None, None, None
     finally:
-        if cur: 
+        if cur:
             cur.close()
-        if conn: 
+        if conn:
             release_db(conn)
 
 
