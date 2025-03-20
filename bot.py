@@ -1761,13 +1761,16 @@ async def ver_pedido_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
             (order_id, cart_id, cart_total, cart_snapshot, confirmation_code, 
              order_date, status, client_name, client_address) = order
 
-        # Convertir el snapshot JSON a lista de items
+        # Si cart_snapshot ya es una lista o diccionario, no es necesario parsearlo
         import json
-        try:
-            products = json.loads(cart_snapshot)
-        except Exception as e:
-            logger.error("Error al cargar el snapshot JSON: %s", e)
-            products = []
+        if isinstance(cart_snapshot, (str, bytes, bytearray)):
+            try:
+                products = json.loads(cart_snapshot)
+            except Exception as e:
+                logger.error("Error al cargar el snapshot JSON: %s", e)
+                products = []
+        else:
+            products = cart_snapshot
 
         details_text = f"Pedido #{order_id}\n"
         details_text += f"Código: {confirmation_code}\n"
@@ -1789,8 +1792,6 @@ async def ver_pedido_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     finally:
         release_db(conn)
-
-
 
 # Luego, en tu función main() o al registrar los handlers:
     
