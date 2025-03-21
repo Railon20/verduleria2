@@ -147,7 +147,6 @@ def init_event_loop_and_webhook():
     else:
         logger.error("Error al configurar el webhook")
 
-@cached(cache=user_info_cache)
 def get_user_info_cached(telegram_id):
     telegram_id = int(telegram_id)  # Aseguramos que siempre es entero
     conn = connect_db()
@@ -1039,8 +1038,7 @@ async def procesar_cambio_direccion_handler(update: Update, context: ContextType
         cur = conn.cursor()
         cur.execute("UPDATE users SET address = %s WHERE telegram_id = %s", (new_address, telegram_id))
         conn.commit()
-        # Limpiamos la caché completa para asegurar que se muestre el dato actualizado
-        user_info_cache.pop(telegram_id, None)
+        user_info_cache.pop(int(update.effective_user.id), None)
     except Exception as e:
         logger.error(f"Error al actualizar la dirección: {e}")
         await update.message.reply_text("Ocurrió un error al actualizar la dirección. Inténtalo nuevamente.")
