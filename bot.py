@@ -1505,7 +1505,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     # Si el usuario no está registrado, solicita el nombre
     if not user:
         logger.info("Usuario no registrado, pidiendo nombre")
-        await update.message.reply_text("Bienvenido. Para comenzar, ingresa tu nombre:")
+        await update.message.reply_text("Bienvenido. Solo tiene que registrarse con nombre y direccion para empesar a hacer pedidos a domicilio. Para comenzar, ingrese su nombre:")
         return NAME
 
     # Si el usuario ya está registrado, envía el menú principal
@@ -1608,7 +1608,7 @@ async def name_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     name = update.message.text
     context.user_data['name'] = name
     await update.message.reply_text(
-        "Gracias. Ahora, ingresa tu dirección. A esta dirección se enviarán los pedidos. Podrás cambiarla después si quieres. Agrega una breve descripcion de tu hogar para que el repartidor lo encuentre mas facilmente:"
+        "Gracias. Ahora, ingrese su dirección. A esta dirección se enviarán los pedidos. Podrá cambiarla después si quiere. Agregue una breve descripcion de su hogar para que el repartidor lo encuentre mas facilmente:"
     )
     return ADDRESS
 
